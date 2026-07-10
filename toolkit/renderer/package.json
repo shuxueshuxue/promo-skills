@@ -1,0 +1,26 @@
+{
+  "name": "promo-skills-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Remotion renderer skeleton for the promo-video final cut.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "render": "remotion render final-cut",
+    "qa": "node scripts/final-cut-qa.mjs",
+    "upgrade": "remotion upgrade",
+    "lint": "eslint src && tsc"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.487",
+    "@remotion/media": "4.0.487",
+    "@remotion/tailwind-v4": "4.0.487",
+    "@remotion/transitions": "4.0.487",
+    "mediabunny": "^1.50.7",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.487",
+    "tailwindcss": "4.0.0"
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+*.log
+# media & capture artifacts never belong in git
+frames/
+renders/
+public/frag/
+*.mp4
+*.webm
+*.mp3
+*.wav
+review/feedback.jsonl
+.DS_Store

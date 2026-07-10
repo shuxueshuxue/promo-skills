@@ -1,0 +1,21 @@
+{
+  "name": "promo-skills-toolkit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable, product-agnostic tools for the promo-video skill.",
+  "license": "MIT",
+  "scripts": {
+    "review": "node review-server.mjs",
+    "ingest": "node ingest.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.50.0"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": { "optional": true }
+  }
+}

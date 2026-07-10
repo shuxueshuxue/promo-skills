@@ -1,0 +1,267 @@
+{
+  "$comment": "h2-research-group HERO 镜头剧本。timeline 的 t0 = 录制 spec 里导师真消息发出的瞬间（spec 发完消息立刻 spawn perform）。",
+  "cast": {
+    "director": {
+      "kind": "human",
+      "name": "周明远"
+    },
+    "shijie": {
+      "kind": "human",
+      "name": "高雨晴"
+    },
+    "wenxian": {
+      "kind": "agent",
+      "name": "文献雷达",
+      "avatar": "./assets/agent-avatars/avatar-04.png",
+      "owner": "director"
+    },
+    "shiyan": {
+      "kind": "agent",
+      "name": "实验管家",
+      "avatar": "./assets/agent-avatars/avatar-06.png",
+      "owner": "director"
+    },
+    "tubiao": {
+      "kind": "agent",
+      "name": "图表工坊",
+      "avatar": "./assets/agent-avatars/avatar-07.png",
+      "owner": "director"
+    },
+    "xiaomi": {
+      "kind": "agent",
+      "name": "摘要小秘",
+      "avatar": "./assets/agent-avatars/avatar-11.png",
+      "owner": "director"
+    }
+  },
+  "friendships": [
+    [
+      "director",
+      "shijie"
+    ]
+  ],
+  "groups": {
+    "main": {
+      "creator": "director",
+      "name": "凝聚态课题组 · 中期交付",
+      "members": [
+        "shijie",
+        "wenxian",
+        "shiyan",
+        "tubiao",
+        "xiaomi"
+      ],
+      "agentRoles": {
+        "shiyan": "supervisor"
+      }
+    },
+    "noise1": {
+      "creator": "director",
+      "name": "组会安排",
+      "members": [
+        "shijie",
+        "xiaomi"
+      ]
+    },
+    "noise2": {
+      "creator": "director",
+      "name": "设备预约 · 4 楼公共平台",
+      "members": [
+        "shiyan"
+      ]
+    },
+    "noise3": {
+      "creator": "director",
+      "name": "课题组 · 灌水",
+      "members": [
+        "shijie",
+        "wenxian",
+        "tubiao"
+      ]
+    }
+  },
+  "presence": {
+    "wenxian": "idle",
+    "shiyan": "running:main",
+    "tubiao": "idle",
+    "xiaomi": "idle"
+  },
+  "history": [
+    {
+      "group": "noise1",
+      "from": "xiaomi",
+      "agoMin": 1765,
+      "text": "下周组会轮到 高雨晴 讲文献，题目今晚前报给我就行。"
+    },
+    {
+      "group": "noise1",
+      "from": "shijie",
+      "agoMin": 1755,
+      "text": "收到，讲那篇应变调控的 PRB。"
+    },
+    {
+      "group": "noise1",
+      "from": "xiaomi",
+      "agoMin": 866,
+      "text": "提醒：明天 14:00 组会，B404，投影仪我已预约。"
+    },
+    {
+      "group": "noise2",
+      "from": "shiyan",
+      "agoMin": 1675,
+      "text": "XRD 时段抢到了：明早 8:00–10:00，样品台 2 号。超导磁体那边周四检修，别排实验。"
+    },
+    {
+      "group": "noise2",
+      "from": "shiyan",
+      "agoMin": 924,
+      "text": "马弗炉 8:30 的预约签到成功，运行正常。"
+    },
+    {
+      "group": "noise3",
+      "from": "shijie",
+      "agoMin": 1975,
+      "text": "楼下咖啡机修好了，续命成功 ☕"
+    },
+    {
+      "group": "noise3",
+      "from": "wenxian",
+      "agoMin": 1485,
+      "text": "今晚 arXiv 挂新的比较多，我睡前爬完发明早报。"
+    },
+    {
+      "group": "main",
+      "from": "shijie",
+      "agoMin": 1603,
+      "text": "XRD 那批我先扫了一眼，2θ=38.2° 的主峰整体往右飘，@实验管家 把 batch-0609 和 0612 的原始曲线对齐比一下？"
+    },
+    {
+      "group": "main",
+      "from": "shiyan",
+      "agoMin": 1597,
+      "text": "对齐完了：0609/0612 在 38.2° 处偏移 +0.07°，S-217 的台阶背景也偏高。翻了温度日志——0612 当天腔体波动 ±1.8℃（正常 ±0.5）。对比图 xrd_align_0609_0612.png 已传共享盘，异常段标红。"
+    },
+    {
+      "group": "main",
+      "from": "tubiao",
+      "agoMin": 1589,
+      "text": "论文 Fig.3 重排成双栏了，误差棒统一 1σ，配色套课题组模板。文件在 figs/v7/Fig3_draft.pdf，@高雨晴 图注第二句帮我确认下措辞。"
+    },
+    {
+      "group": "main",
+      "from": "wenxian",
+      "agoMin": 1575,
+      "text": "今晚新增 3 篇强相关：PRB 111, 245120 (2025) 的应变调控路线跟我们 S-217 最像，已入共享库 refs/strain-tuning/ 并打 tag。"
+    },
+    {
+      "group": "main",
+      "from": "shijie",
+      "agoMin": 1563,
+      "text": "Fig.3 图注没问题。综述 2024 之后那段我还空着，明天跟老师对下范围。"
+    },
+    {
+      "group": "main",
+      "from": "xiaomi",
+      "agoMin": 1550,
+      "text": "今日小结：① 实验两批对齐完毕，1 处温度异常待确认 ② 图表 v7 出 3 张 ③ 文献 +3。待办已写进 notes/0708.md，其中 2 条要 @周明远 拍板，我标了 ⚠️。"
+    },
+    {
+      "group": "main",
+      "from": "shiyan",
+      "agoMin": 1448,
+      "text": "补一条：S-217 复测排到明早 8:30，马弗炉已预约，结果出来直接贴群里。"
+    },
+    {
+      "group": "main",
+      "from": "shiyan",
+      "agoMin": 915,
+      "text": "S-217 复测完成：38.2° 峰归位（残余偏移 <0.01°），坐实是 0612 的腔体温漂。全程腔温 ±0.4℃，原始数据在 raw/S217_recheck_0709/。"
+    },
+    {
+      "group": "main",
+      "from": "tubiao",
+      "agoMin": 893,
+      "text": "基于复测数据把 Fig.3(b) 预览重画了一版，峰形干净多了：figs/v7/Fig3b_recheck_preview.png。等定稿口径再出全套。"
+    },
+    {
+      "group": "main",
+      "from": "wenxian",
+      "agoMin": 881,
+      "text": "昨夜 arXiv:cond-mat 新挂 47 篇，初筛留 6 篇，和中期答辩强相关的 2 篇置顶。清单：refs/triage-0709.md"
+    }
+  ],
+  "timeline": [
+    {
+      "atMs": 200,
+      "op": "heartbeat"
+    },
+    {
+      "atMs": 1400,
+      "op": "agent-activity",
+      "who": "wenxian",
+      "activity": "running",
+      "group": "main",
+      "actions": [
+        "search"
+      ]
+    },
+    {
+      "atMs": 3200,
+      "op": "message",
+      "group": "main",
+      "from": "wenxian",
+      "text": "收到。我把 24–26 年的综述和高被引拉一遍，去重后今晚给筛好的清单——文献这条线我占住。"
+    },
+    {
+      "atMs": 5600,
+      "op": "agent-activity",
+      "who": "tubiao",
+      "activity": "running",
+      "group": "main",
+      "actions": [
+        "execute"
+      ]
+    },
+    {
+      "atMs": 7000,
+      "op": "message",
+      "group": "main",
+      "from": "tubiao",
+      "text": "XRD 原始数据我有缓存，直接重跑 batch-0612 出版式图：预计 40 分钟，出来就贴群里。"
+    },
+    {
+      "atMs": 9800,
+      "op": "agent-activity",
+      "who": "shiyan",
+      "activity": "running",
+      "group": "main",
+      "actions": [
+        "read"
+      ]
+    },
+    {
+      "atMs": 10600,
+      "op": "message",
+      "group": "main",
+      "from": "shiyan",
+      "mentions": [
+        "director"
+      ],
+      "text": "重出图可以直接用今天这批，同步复测结论：\n· S-217：38.2° 峰残余偏移 <0.01°，0612 老数据确认是温漂\n· 全程腔温 ±0.4℃，曲线在 raw/S217_recheck_0709/\n· 唯一悬念：65℃ 段有个小台阶（recheck_S217.png 第 3 幅），不碍主结论\n@周明远 0612 那批按温漂作废，可以吗？"
+    },
+    {
+      "atMs": 13400,
+      "op": "message",
+      "group": "main",
+      "from": "xiaomi",
+      "mentions": [
+        "director"
+      ],
+      "text": "@周明远 今天等你拍板的就 2 件：① 0612 批次废弃与否（实验管家在等）② 综述要不要含预印本。其余进度我盯着，答辩倒计时 7 天。"
+    },
+    {
+      "atMs": 14200,
+      "op": "heartbeat"
+    }
+  ]
+}
