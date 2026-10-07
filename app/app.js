@@ -184,7 +184,7 @@ async function checkImageKey() {
   if (!result) return // app_check's rehearsal runs no program
   const answer = result.structuredContent ?? JSON.parse(result.content?.[0]?.text ?? '{}')
   if (result.isError || !answer.ok) $('#img-state').textContent = `不能用：${answer.reason ?? result.content?.[0]?.text ?? '?'}`
-  else $('#img-state').textContent = `能用 · ${answer.remaining == null ? '没设额度上限' : `余额度 $${answer.remaining.toFixed(2)}`}`
+  else $('#img-state').textContent = `能用 · ${answer.remaining == null ? `余额读不到` : `可用余额 $${answer.remaining.toFixed(2)}`}`
   if (answer.settings) $('#img-where').textContent = `设置存在这台电脑上：${answer.settings}。`
 }
 $('#img-save').onclick = async () => {

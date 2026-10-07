@@ -221,11 +221,14 @@ export const check_image_key = {
     const settings = path.join(DATA_DIR, SETTINGS_FILE)
     const key = keyOf(readSettings())
     if (!key) return { ok: false, reason: '还没有密钥', settings }
-    const res = await fetch('https://openrouter.ai/api/v1/key', { headers: { Authorization: `Bearer ${key}` } })
+    const headers = { Authorization: `Bearer ${key}` }
+    const res = await fetch('https://openrouter.ai/api/v1/key', { headers })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) return { ok: false, reason: `OpenRouter 说 HTTP ${res.status}${json.error?.message ? `：${json.error.message}` : ''}`, settings }
-    const remaining = json.data?.limit_remaining
-    return { ok: true, remaining: typeof remaining === 'number' ? remaining : null, settings }
+    // What can be spent is the smaller of the key's own limit and the account's credits (an empty account answers 402).
+    const credits = await fetch('https://openrouter.ai/api/v1/credits', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+    const left = [json.data?.limit_remaining, credits?.data ? credits.data.total_credits - credits.data.total_usage : undefined].filter((n) => typeof n === 'number')
+    return { ok: true, remaining: left.length ? Math.min(...left) : null, settings }
   },
 }
 
@@ -265,7 +268,10 @@ export const image = {
       }),
     })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok || !json.data?.[0]?.b64_json) throw new Error(`the image service said HTTP ${res.status}: ${JSON.stringify(json.error ?? json).slice(0, 300)}`)
+    if (!res.ok || !json.data?.[0]?.b64_json) {
+      const why = res.status === 402 ? 'the person\'s OpenRouter account is out of credits' : `the image service said HTTP ${res.status}: ${JSON.stringify(json.error ?? json).slice(0, 300)}`
+      throw new Error(`No image: ${why}. Hand in a precise frame description for now and say so in the card — never draw the frame with a script instead.`)
+    }
     const dir = path.join(DATA_DIR, 'images')
     mkdirSync(dir, { recursive: true })
     const file = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${agent ? agent.slice(5, 13) : 'page'}.png`)
