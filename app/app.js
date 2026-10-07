@@ -3,7 +3,7 @@
 // what the next round mixes. Review rules are promo-skills' (skills/promo-video/references/review-loop.md): reject or
 // annotate, never "approve"; a reject is answered by a newer version of the card.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, drawHint, feedbackOf, pickOf, roundComplete, roundSummary, roundsInOrder, slotOf, statusOf } from './model.js'
+import { KINDS, drawHint, feedbackOf, noteStale, pickOf, roundComplete, roundSummary, roundsInOrder, slotOf, statusOf } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -290,7 +290,7 @@ function cardView(id, card) {
       <strong>${card.title}${card.version > 1 ? html` <small class="muted">第 ${card.version} 版</small>` : ''}</strong>
       ${card.text ? html`<div class="text" data-md="${id}"></div>` : ''}
       ${card.text && card.text.length > 160 ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
-      ${note ? html`<div class="critic"><strong>评审 ${note.score}/10</strong> · ${note.comment}</div>` : ''}
+      ${note ? html`<div class="critic"><strong>评审 ${note.score}/10</strong>${noteStale(f.data, id) ? '（评的是上一版）' : ''} · ${note.comment}</div>` : ''}
       ${history.length ? html`<small class="muted">${history.map((h) => html`<span>${h.verdict === 'reject' ? '打回' : h.verdict === 'pick' ? '选了' : '批注'}${h.comment ? `：${h.comment}` : ''}（${nameOf(h.who)}）</span><br />`)}</small>` : ''}
       <div class="row">
         <gugu-avatar user="${card.by}" size="xs"></gugu-avatar>

@@ -2,7 +2,7 @@
 // The card table is the file the agent was woken about; what to do with it is the choukatai skill (skills/choukatai).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { feedbackOf, roundComplete, roundsInOrder, slotOf, statusOf } from './model.js'
+import { feedbackOf, noteStale, roundComplete, roundsInOrder, slotOf, statusOf } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .chouka.json file the whisper you got is about.' }
@@ -40,7 +40,7 @@ const cardLine = (data, id, card) => ({
   model: card.model ?? null,
   version: card.version ?? 1,
   status: statusOf(data, id).label,
-  critic: data.notes[id] ? { score: data.notes[id].score, comment: data.notes[id].comment } : null,
+  critic: data.notes[id] ? { score: data.notes[id].score, comment: data.notes[id].comment, onEarlierVersion: noteStale(data, id) } : null,
   files: card.files ?? [],
   parents: card.parents ?? [],
 })
@@ -83,7 +83,7 @@ export const board = {
             round: rid,
             n: r.n,
             complete: roundComplete(data, rid),
-            waiting: cards.filter(([cid, card]) => card.round === rid && !data.notes[cid]).map(([cid]) => cid),
+            waiting: cards.filter(([cid, card]) => card.round === rid && (!data.notes[cid] || noteStale(data, cid))).map(([cid]) => cid),
           })),
         feedbackOnYours: mine.flatMap(([cid, card]) =>
           feedbackOf(data, cid)

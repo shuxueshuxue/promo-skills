@@ -16,6 +16,9 @@ export const drawHint = (kind) => (kind === '分镜' ? '画面用抽卡台的 im
 
 const time = (iso) => Date.parse(iso ?? '') || 0
 
+/** The critic's note is on an earlier version: the card was revised after it (one note a card, the latest). */
+export const noteStale = (data, id) => Boolean(data.notes[id] && data.cards[id] && time(data.notes[id].at) < time(data.cards[id].updatedAt ?? data.cards[id].at))
+
 /** Every card's feedback, oldest first. */
 export function feedbackOf(data, cardId) {
   return Object.values(data.feedback ?? {})
