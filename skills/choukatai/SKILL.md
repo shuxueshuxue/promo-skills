@@ -31,8 +31,10 @@ A whisper about a `.chouka.json` file means something on the table concerns you.
    `parents`.
 2. Make **`each` cards that differ from each other** — different angle, structure, tone — not one idea reworded.
 3. A card is a short title the person can pick by, plus `text` (markdown) and/or `files`:
-   - images (storyboard frames, posters): generate, then put them in **the same chat** with `workspace_upload_file`
-     (pass `mime_type`), and give their item ids in `files`;
+   - images (storyboard frames, posters): make them with what your harness has — on gugu, Codex agents have a built-in
+     image tool (gpt-image-2 through the platform gateway); others call an image API they have a key for, or hand in a
+     precise frame description and say so. Put each image in **the same chat** with `workspace_upload_file` (pass
+     `mime_type`), and give their item ids in `files`;
    - clips: real product footage follows the promo-video skill (capture, assemble, a variant render); intros and moods
      may come from a video API. Upload the review render (720p is plenty; the master stays on the machine that rendered it).
 4. Report `cost`: `usd` is what the media API itself reported (`usage.cost`), `seconds` the wall time the card took,

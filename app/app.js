@@ -187,6 +187,15 @@ $('#shared').addEventListener('click', async (event) => {
     say(`叫了评审 ${nameOf(r.critic)}`)
   }
 })
+// A round's critic, changed by the person (one that went quiet, or a model they trust more): woken anew by 叫评审.
+$('#shared').addEventListener('change', (event) => {
+  const round = event.target.dataset?.roundCritic
+  if (!round || !f.data.rounds[round]) return
+  f.transact(() => {
+    f.data.rounds[round].critic = event.target.value || null
+    f.data.rounds[round].criticWoken = null
+  })
+})
 
 const money = (usd) => (usd ? `$${usd.toFixed(usd < 1 ? 3 : 2)}` : '$0')
 const seconds = (s) => (s >= 90 ? `用时 ${Math.round(s / 60)} 分钟` : `用时 ${Math.round(s)} 秒`)
@@ -231,11 +240,12 @@ function draw() {
   $('#rules-box').querySelector('summary').textContent = `导演法典 · 23 + ${rules.length} 条`
 
   render($('#shared'), html`
-    ${rounds.length ? html`<div class="row">${rounds.map(([id, r]) => {
+    ${rounds.length ? html`<div class="stack">${rounds.map(([id, r]) => {
       const s = roundSummary(data, id)
       const done = roundComplete(data, id)
-      return html`<span class="tag" data-key="${id}">第 ${r.n} 轮 · ${r.slot} · ${s.count} 张${s.usd ? ` · ${money(s.usd)}` : ''}${s.seconds ? ` · ${seconds(s.seconds)}` : ''}${s.tokens ? ` · ${tokens(s.tokens)}` : ''}${done ? ' · 交齐了' : ''}</span>
-        ${r.critic && s.count ? html`<button class="sm" data-act="critic" data-round="${id}">叫评审</button>` : ''}`
+      return html`<div class="row" data-key="${id}"><span class="tag">第 ${r.n} 轮 · ${r.slot} · ${s.count} 张${s.usd ? ` · ${money(s.usd)}` : ''}${s.seconds ? ` · ${seconds(s.seconds)}` : ''}${s.tokens ? ` · ${tokens(s.tokens)}` : ''}${done ? ' · 交齐了' : ''}</span>
+        <label class="row"><small>评审</small><select data-round-critic="${id}"><option value="">（无）</option>${agents().map((a) => html`<option value="${a.id}" ${a.id === r.critic ? html`selected` : ''}>${a.name}</option>`)}</select></label>
+        ${r.critic && s.count ? html`<button class="sm" data-act="critic" data-round="${id}">叫评审</button>` : ''}</div>`
     })}</div>` : html`<gugu-empty icon="checklist"><strong>还没有卡</strong><small>写好需求，开第一轮</small></gugu-empty>`}
     ${slots.map((slot) => {
       const inSlot = cards.filter(([, card]) => slotOf(data, card) === slot)
