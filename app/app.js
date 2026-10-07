@@ -3,7 +3,7 @@
 // what the next round mixes. Review rules are promo-skills' (skills/promo-video/references/review-loop.md): reject or
 // annotate, never "approve"; a reject is answered by a newer version of the card.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, feedbackOf, pickOf, roundComplete, roundSummary, roundsInOrder, slotOf, statusOf } from './model.js'
+import { KINDS, drawHint, feedbackOf, pickOf, roundComplete, roundSummary, roundsInOrder, slotOf, statusOf } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -154,7 +154,7 @@ $('#r-start').onclick = async () => {
   $('#r-ask').value = ''
   $('#round-box').open = false
   say(`第 ${n} 轮开始了：叫了 ${chosen.map(nameOf).join('、')}`)
-  for (const agent of chosen) await tell(agent, `抽卡台第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。先用抽卡台的 board 工具读卡桌（要求和参考都在那里），每张卡用 submit 交。`)
+  for (const agent of chosen) await tell(agent, `抽卡台第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。先用抽卡台的 board 工具读卡桌（要求和参考都在那里），每张卡用 submit 交。${drawHint(kind)}`)
 }
 
 // ─── 出图设置: settings.json in this App's own data folder (the image tool reads it); never in the shared table ───────
@@ -243,7 +243,7 @@ $('#say-send').onclick = async () => {
   $('#say-box').close()
   const card = f.data.cards[cardId]
   await tell(card?.by, verdict === 'reject'
-    ? `「${card?.title}」被打回了：用抽卡台的 board 工具看批注，再用 submit（带上 card）交新一版。`
+    ? `「${card?.title}」被打回了：用抽卡台的 board 工具看批注，再用 submit（带上 card）交新一版。${drawHint(card?.kind)}`
     : `「${card?.title}」有一条新批注：用抽卡台的 board 工具看。`)
 }
 

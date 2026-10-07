@@ -11,6 +11,8 @@
 // Everything many people and agents add to is a map by id (no arrays to fight over).
 
 export const KINDS = ['叙事', '文案', '分镜', '变式', '片头', '整片', '宣传稿', '其他']
+/** What a whisper about a card of this kind adds: pictures come from the App's own image tool, whoever draws. */
+export const drawHint = (kind) => (kind === '分镜' ? '画面用抽卡台的 image 工具出。' : '')
 
 const time = (iso) => Date.parse(iso ?? '') || 0
 
