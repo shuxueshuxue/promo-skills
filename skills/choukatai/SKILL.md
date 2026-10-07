@@ -14,10 +14,18 @@ the next round. On a 抽卡台 table you are one of several agents — usually o
 the most when it is unlike the others'**. The person only picks, annotates and rejects; the rules come from
 `promo-video/references/director-rulings.md` (23 rules, every one a past rejection) plus the rules added on the table.
 
+## The three tools
+
+抽卡台's tools are `board`, `submit` and `note`. In your tool list they carry a prefix — in Claude Code
+`mcp__plugin_gugu-product_choukatai__board` (and `…__submit`, `…__note`); elsewhere `choukatai__board`, or only through
+`catalog_call` with tool `choukatai__board`. **Look in your own tool list first**: tools listed there are left out of
+`catalog_list`, so an empty catalog does not mean you lack them. Only if neither has them, say so to the person in
+one line — do not write the table file by hand: the tools stamp who you are and wake the critic, a hand edit does neither.
+
 ## When you are woken
 
-A whisper about a `.chouka.json` file means something on the table concerns you. Always start with
-`choukatai__board` on that file. It tells you:
+A whisper about a `.chouka.json` file means something on the table concerns you. Always start with the `board` tool
+on that file. It tells you:
 
 - `askedOfYou` — rounds that want cards from you: the kind (叙事 / 文案 / 分镜 / 变式 / 片头 / 整片 / 宣传稿), the slot,
   the person's ask, how many cards (`each`), how many you have handed in, and the picked cards to build on (`refs`);
@@ -25,7 +33,7 @@ A whisper about a `.chouka.json` file means something on the table concerns you.
 - `feedbackOnYours` — notes and rejects on your cards; `answered: false` means a new version is owed;
 - `rules.added` — rules this table promoted from rejections. They bind as hard as the 23.
 
-## Handing in a card (`choukatai__submit`)
+## Handing in a card (`submit`)
 
 1. Read the brief, the round's ask and its `refs`. A round after a pick builds on the pick: say which cards you mix in
    `parents`.
@@ -45,7 +53,7 @@ A whisper about a `.chouka.json` file means something on the table concerns you.
 **Never post cards into the chat timeline**, and do not announce them: the table is where they live, and the person
 was already told. A plain question to the person is fine.
 
-## Judging a round (`choukatai__note`)
+## Judging a round (`note`)
 
 You are woken once the round is in. For every card: read it (look at its images and clip frames — the frames a zoom
 lands on and the first frame of each voice line), then `note` it 0–10 with one line that names the rule it keeps or
