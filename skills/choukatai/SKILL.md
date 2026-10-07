@@ -22,7 +22,9 @@ the most when it is unlike the others'**. The person only picks, annotates and r
 chat, or before an update added the tool — is still reachable: `catalog_call` with tool `choukatai__image` (or
 `choukatai__board`, …) runs it, even when `catalog_list` does not show it. Only if that fails too, say so to the
 person in one line — do not write the table file by hand, and do not call the App's services yourself: the tools stamp
-who you are and wake the critic, a hand edit does neither.
+who you are and wake the critic, a hand edit does neither. **Never read 抽卡台's own settings file** (`settings.json` in
+the App's data folder): it holds the person's own key, which the `image` tool uses for you — read, it would go into
+your context and on to your model's provider.
 
 ## When you are woken
 
@@ -41,12 +43,15 @@ on that file. It tells you:
    `parents`.
 2. Make **`each` cards that differ from each other** — different angle, structure, tone — not one idea reworded.
 3. A card is a short title the person can pick by, plus `text` (markdown) and/or `files`:
-   - images (storyboard frames, posters): make them with 抽卡台's `image` tool — the person's image model, the same for
-     every writer whatever harness it runs in. Write the prompt as the frame itself (subject, composition, what must be
-     on screen); pass `references` (absolute paths) to keep a mascot's or a product screenshot's look. It answers a file
-     path: put that file in **the same chat** with `workspace_upload_file` (`mime_type` `image/png`) and give the item
-     ids in `files`. If it says there is no key yet, hand in a precise frame description and say so — never draw the
-     frame with a script instead. A harness with its own image tool (Codex) may use that; upload it the same way;
+   - storyboard frames: the film shows **the real product**, so a frame is first of all a precise shot — which screen,
+     in which state (what is on it, who has said what), the camera's move — that the capture step then films for real
+     (promo-video skill). Hand that in as the card's text. Pictures help the person pick: a real screenshot or recording
+     frame of that screen is best; a drawn frame (抽卡台's `image` tool, the person's image model; a Codex agent's own
+     image tool) is a sketch of the composition, never the product. Put each picture in **the same chat** with
+     `workspace_upload_file` (`mime_type` `image/png`) and give the item ids in `files`. When the `image` tool says it
+     cannot draw, take its answer as it is — the description is the card — and never draw the frame with a script;
+   - posters and key visuals: 抽卡台's `image` tool, uploaded the same way (`references`, absolute paths, keep a
+     mascot's or a screenshot's look);
    - clips: real product footage follows the promo-video skill (capture, assemble, a variant render); intros and moods
      may come from a video API. Upload the review render (720p is plenty; the master stays on the machine that rendered it).
 4. Report `cost`: `usd` is what the media API itself reported (the `image` tool's `usd`, a video API's `usage.cost`),
