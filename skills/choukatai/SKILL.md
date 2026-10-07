@@ -17,11 +17,12 @@ the most when it is unlike the others'**. The person only picks, annotates and r
 ## The tools
 
 抽卡台's tools are `board`, `submit`, `note` and `image`. In your tool list they carry a prefix — in Claude Code
-`mcp__plugin_gugu-product_choukatai__board` (and `…__submit`, `…__note`, `…__image`); elsewhere `choukatai__board`, or
-only through `catalog_call` with tool `choukatai__board`. **Look in your own tool list first**: tools listed there are
-left out of `catalog_list`, so an empty catalog does not mean you lack them. Only if neither has them, say so to the
-person in one line — do not write the table file by hand: the tools stamp who you are and wake the critic, a hand edit
-does neither.
+`mcp__plugin_gugu-product_choukatai__board` (and `…__submit`, `…__note`, `…__image`); elsewhere `choukatai__board`.
+**Look in your own tool list first.** One that is not there — your session started before the App was given to this
+chat, or before an update added the tool — is still reachable: `catalog_call` with tool `choukatai__image` (or
+`choukatai__board`, …) runs it, even when `catalog_list` does not show it. Only if that fails too, say so to the
+person in one line — do not write the table file by hand, and do not call the App's services yourself: the tools stamp
+who you are and wake the critic, a hand edit does neither.
 
 ## When you are woken
 
