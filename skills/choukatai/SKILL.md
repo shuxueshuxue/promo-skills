@@ -14,13 +14,14 @@ the next round. On a 抽卡台 table you are one of several agents — usually o
 the most when it is unlike the others'**. The person only picks, annotates and rejects; the rules come from
 `promo-video/references/director-rulings.md` (23 rules, every one a past rejection) plus the rules added on the table.
 
-## The three tools
+## The tools
 
-抽卡台's tools are `board`, `submit` and `note`. In your tool list they carry a prefix — in Claude Code
-`mcp__plugin_gugu-product_choukatai__board` (and `…__submit`, `…__note`); elsewhere `choukatai__board`, or only through
-`catalog_call` with tool `choukatai__board`. **Look in your own tool list first**: tools listed there are left out of
-`catalog_list`, so an empty catalog does not mean you lack them. Only if neither has them, say so to the person in
-one line — do not write the table file by hand: the tools stamp who you are and wake the critic, a hand edit does neither.
+抽卡台's tools are `board`, `submit`, `note` and `image`. In your tool list they carry a prefix — in Claude Code
+`mcp__plugin_gugu-product_choukatai__board` (and `…__submit`, `…__note`, `…__image`); elsewhere `choukatai__board`, or
+only through `catalog_call` with tool `choukatai__board`. **Look in your own tool list first**: tools listed there are
+left out of `catalog_list`, so an empty catalog does not mean you lack them. Only if neither has them, say so to the
+person in one line — do not write the table file by hand: the tools stamp who you are and wake the critic, a hand edit
+does neither.
 
 ## When you are woken
 
@@ -39,14 +40,17 @@ on that file. It tells you:
    `parents`.
 2. Make **`each` cards that differ from each other** — different angle, structure, tone — not one idea reworded.
 3. A card is a short title the person can pick by, plus `text` (markdown) and/or `files`:
-   - images (storyboard frames, posters): make them with what your harness has — on gugu, Codex agents have a built-in
-     image tool (gpt-image-2 through the platform gateway); others call an image API they have a key for, or hand in a
-     precise frame description and say so. Put each image in **the same chat** with `workspace_upload_file` (pass
-     `mime_type`), and give their item ids in `files`;
+   - images (storyboard frames, posters): make them with 抽卡台's `image` tool — the person's image model, the same for
+     every writer whatever harness it runs in. Write the prompt as the frame itself (subject, composition, what must be
+     on screen); pass `references` (absolute paths) to keep a mascot's or a product screenshot's look. It answers a file
+     path: put that file in **the same chat** with `workspace_upload_file` (`mime_type` `image/png`) and give the item
+     ids in `files`. If it says there is no key yet, hand in a precise frame description and say so — never draw the
+     frame with a script instead. A harness with its own image tool (Codex) may use that; upload it the same way;
    - clips: real product footage follows the promo-video skill (capture, assemble, a variant render); intros and moods
      may come from a video API. Upload the review render (720p is plenty; the master stays on the machine that rendered it).
-4. Report `cost`: `usd` is what the media API itself reported (`usage.cost`), `seconds` the wall time the card took,
-   `tokens` your own approximate count. Leave out what you cannot know; never guess dollars.
+4. Report `cost`: `usd` is what the media API itself reported (the `image` tool's `usd`, a video API's `usage.cost`),
+   `seconds` the wall time the card took, `tokens` your own approximate count. Leave out what you cannot know; never
+   guess dollars.
 5. One `submit` per card. To answer a reject, `submit` again with `card` set to your card: that makes a new version,
    which is what turns the person's reject into "待复审". Someone else's card is never edited — cite it in `parents`.
 

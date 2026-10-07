@@ -1,6 +1,9 @@
 // 抽卡台's tools for agents (guide apps-programs): every export is one tool, `agent` is stamped by gugu — never asked for.
 // The card table is the file the agent was woken about; what to do with it is the choukatai skill (skills/choukatai).
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { feedbackOf, roundComplete, roundsInOrder, slotOf, statusOf } from './model.js'
+import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .chouka.json file the whisper you got is about.' }
 const now = () => new Date().toISOString()
@@ -193,6 +196,88 @@ export const note = {
       return { card, score: f.data.notes[card].score, toldThePerson: Boolean(told) }
     } finally {
       f.close()
+    }
+  },
+}
+
+const DATA_DIR = process.env.GUGU_EXTENSION_DATA_DIR ?? path.join(process.cwd(), '.data')
+const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }
+const readSettings = () => {
+  try {
+    return parseSettings(readFileSync(path.join(DATA_DIR, SETTINGS_FILE), 'utf8'))
+  } catch {
+    return {}
+  }
+}
+const keyOf = (settings) => (typeof settings.openrouterKey === 'string' ? settings.openrouterKey.trim() : '')
+
+/** The settings box's 「保存并检查」: OpenRouter's key endpoint answers without making (or charging for) an image. */
+export const check_image_key = {
+  description: 'Check the OpenRouter key in 抽卡台\'s settings (the card table\'s settings box only).',
+  inputSchema: { type: 'object', properties: {} },
+  annotations: { readOnlyHint: true },
+  _meta: { ui: { visibility: ['app'] } },
+  async run() {
+    const settings = path.join(DATA_DIR, SETTINGS_FILE)
+    const key = keyOf(readSettings())
+    if (!key) return { ok: false, reason: '还没有密钥', settings }
+    const res = await fetch('https://openrouter.ai/api/v1/key', { headers: { Authorization: `Bearer ${key}` } })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) return { ok: false, reason: `OpenRouter 说 HTTP ${res.status}${json.error?.message ? `：${json.error.message}` : ''}`, settings }
+    const remaining = json.data?.limit_remaining
+    return { ok: true, remaining: typeof remaining === 'number' ? remaining : null, settings }
+  },
+}
+
+export const image = {
+  description:
+    'Make one image for a 抽卡台 card — a storyboard frame, a poster, a key visual — with the image model the person set up in the card table (OpenRouter, their key). Answers a local file path: put it in the chat with workspace_upload_file (mime_type image/png), then give its item id in submit → files, and its cost in submit → cost.usd. Use it whichever harness you are; a harness with its own image tool may use that instead.',
+  inputSchema: {
+    type: 'object',
+    required: ['prompt'],
+    properties: {
+      prompt: { type: 'string', description: 'The picture, in words: subject, composition, style, what must be on screen. No text in the image unless you ask for it.' },
+      aspect: { type: 'string', enum: ['16:9', '1:1', '9:16', '4:3', '3:4'], description: 'Default 16:9 (a frame of the film).' },
+      references: { type: 'array', items: { type: 'string' }, description: 'Absolute paths of images on this computer to keep the look of (a mascot, a product screenshot).' },
+    },
+  },
+  async run({ prompt, aspect = '16:9', references = [] }, { agent }) {
+    const settings = readSettings()
+    const key = keyOf(settings)
+    if (!key) throw new Error('No image key yet: the person adds their OpenRouter key under 「出图设置」 on the card table. Until then hand in a precise frame description and say so.')
+    const ref = (file) => {
+      const mime = MIME[path.extname(file).toLowerCase()]
+      if (!mime) throw new Error(`reference ${file}: only png, jpg or webp`)
+      return { type: 'image_url', image_url: { url: `data:${mime};base64,${readFileSync(file).toString('base64')}` } }
+    }
+    const started = Date.now()
+    const res = await fetch('https://openrouter.ai/api/v1/images', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(240_000), // under Claude's 300 s tool limit: a clear error, not an abort
+      body: JSON.stringify({
+        model: settings.imageModel || IMAGE_MODEL,
+        prompt: String(prompt),
+        aspect_ratio: aspect,
+        quality: 'high',
+        n: 1,
+        ...(references.length ? { input_references: references.map(String).map(ref) } : {}),
+      }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok || !json.data?.[0]?.b64_json) throw new Error(`the image service said HTTP ${res.status}: ${JSON.stringify(json.error ?? json).slice(0, 300)}`)
+    const dir = path.join(DATA_DIR, 'images')
+    mkdirSync(dir, { recursive: true })
+    const file = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${agent ? agent.slice(5, 13) : 'page'}.png`)
+    writeFileSync(file, Buffer.from(json.data[0].b64_json, 'base64'))
+    // A key that brings its own provider key (BYOK) is charged upstream: OpenRouter's own cost then reads 0.
+    const usage = json.usage ?? {}
+    return {
+      file_path: file,
+      model: settings.imageModel || IMAGE_MODEL,
+      seconds: Math.round((Date.now() - started) / 1000),
+      usd: Number(usage.cost) || Number(usage.cost_details?.upstream_inference_cost) || 0,
+      next: 'workspace_upload_file this file_path into the chat (mime_type image/png), then pass its item id in submit → files',
     }
   },
 }

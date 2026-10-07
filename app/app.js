@@ -4,6 +4,7 @@
 // annotate, never "approve"; a reject is answered by a newer version of the card.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
 import { KINDS, feedbackOf, pickOf, roundComplete, roundSummary, roundsInOrder, slotOf, statusOf } from './model.js'
+import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
 const md = await window.gugu.markdown()
@@ -90,6 +91,16 @@ $('#controls').innerHTML = `
       <div class="row"><button class="primary" id="r-start">开始</button></div>
     </div>
   </details>
+  <details class="card" id="image-box">
+    <summary><strong>出图设置</strong> <small class="muted" id="img-state"></small></summary>
+    <div class="stack">
+      <small class="muted">写手出分镜、海报时调抽卡台的出图工具，用你的 OpenRouter 密钥，费用记在你的 OpenRouter 账上。密钥只存在这台电脑上，不写进卡桌文件（对话里的人都能看到那个文件）。</small>
+      <label>OpenRouter API 密钥 <input id="img-key" type="password" autocomplete="off" /></label>
+      <label>出图模型 <input id="img-model" placeholder="${IMAGE_MODEL}" /></label>
+      <div class="row"><button class="primary" id="img-save">保存并检查</button><button id="img-clear">清掉密钥</button><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">获取密钥</a></div>
+      <small class="muted" id="img-where"></small>
+    </div>
+  </details>
   <dialog id="say-box">
     <div class="stack">
       <strong id="say-title"></strong>
@@ -145,6 +156,70 @@ $('#r-start').onclick = async () => {
   say(`第 ${n} 轮开始了：叫了 ${chosen.map(nameOf).join('、')}`)
   for (const agent of chosen) await tell(agent, `抽卡台第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。要求和参考都在卡桌上。`)
 }
+
+// ─── 出图设置: settings.json in this App's own data folder (the image tool reads it); never in the shared table ───────
+// A device that runs no programs (the phone) has no callProgram: its writers' images come from a computer.
+const runsPrograms = typeof window.gugu.callProgram === 'function'
+async function loadImageSettings() {
+  for (const id of ['#img-key', '#img-model', '#img-save', '#img-clear']) $(id).disabled = !runsPrograms
+  if (!runsPrograms) {
+    $('#img-state').textContent = '在电脑上设置'
+    return false
+  }
+  const imageSettings = parseSettings(await window.gugu.readData(SETTINGS_FILE))
+  const hasKey = Boolean(String(imageSettings.openrouterKey ?? '').trim())
+  $('#img-state').textContent = hasKey ? '已配置' : '还没有密钥：写手只能交文字分镜'
+  $('#img-key').placeholder = hasKey ? '已配置（要换就粘贴新的）' : '粘贴 OpenRouter 的 API 密钥'
+  $('#img-model').value = imageSettings.imageModel ?? ''
+  return hasKey
+}
+/** Read the file again and change only what the person changed: an agent may have edited it meanwhile. */
+async function saveImageSettings(change) {
+  const next = change(parseSettings(await window.gugu.readData(SETTINGS_FILE)))
+  await window.gugu.writeData(SETTINGS_FILE, `${JSON.stringify(next, null, 2)}\n`)
+}
+async function checkImageKey() {
+  $('#img-state').textContent = '正在试一次…'
+  const result = await window.gugu.callProgram('check_image_key')
+  if (!result) return // app_check's rehearsal runs no program
+  const answer = result.structuredContent ?? JSON.parse(result.content?.[0]?.text ?? '{}')
+  if (result.isError || !answer.ok) $('#img-state').textContent = `不能用：${answer.reason ?? result.content?.[0]?.text ?? '?'}`
+  else $('#img-state').textContent = `能用 · ${answer.remaining == null ? '没设额度上限' : `余额度 $${answer.remaining.toFixed(2)}`}`
+  if (answer.settings) $('#img-where').textContent = `设置存在这台电脑上：${answer.settings}。`
+}
+$('#img-save').onclick = async () => {
+  const key = $('#img-key').value.trim()
+  const model = $('#img-model').value.trim()
+  try {
+    await saveImageSettings((s) => {
+      const next = { ...s }
+      if (key) next.openrouterKey = key
+      if (model) next.imageModel = model
+      else delete next.imageModel
+      return next
+    })
+    $('#img-key').value = ''
+    if (await loadImageSettings()) await checkImageKey()
+  } catch (error) {
+    say(`没存上：${error.message}`, 'error')
+  }
+}
+$('#img-clear').onclick = async () => {
+  try {
+    await saveImageSettings((s) => {
+      const next = { ...s }
+      delete next.openrouterKey
+      return next
+    })
+    await loadImageSettings()
+  } catch (error) {
+    say(`没清掉：${error.message}`, 'error')
+  }
+}
+$('#image-box').addEventListener('toggle', () => {
+  if ($('#image-box').open && runsPrograms) loadImageSettings().then((hasKey) => hasKey && checkImageKey()).catch((error) => say(error.message, 'error'))
+})
+loadImageSettings().catch((error) => say(`出图设置读不出来：${error.message}`, 'error'))
 
 // ─── annotate / reject: one dialog, drawn once ───────────────────────────────────────────────────────────────────────
 let pending = null // { card, verdict }
