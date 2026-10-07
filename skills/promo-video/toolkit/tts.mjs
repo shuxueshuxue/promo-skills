@@ -1,22 +1,30 @@
 #!/usr/bin/env node
-// Narration TTS: text -> mp3 file. Two providers, one seam:
+// Narration TTS: text -> mp3 file. Three providers, one seam:
 //   yunwu  (default) — MiniMax speech-2.8-hd. The voice used for the gugu promo film
 //                      was voice_id "Chinese (Mandarin)_Reliable_Executive" @ speed 1.18.
 //   grok           — OpenRouter grok-voice-tts-1.0.
-// Usage: node tts.mjs --text "line" --out narration/01.mp3 [--provider yunwu|grok] [--voice <id>] [--speed 1.18]
+//   say            — macOS's own `say` (default voice Tingting), no key, nothing leaves the machine. A PLACEHOLDER
+//                      for internal review only: mark every cut that uses it 「占位配音」, and re-voice the final film.
+// Usage: node tts.mjs --text "line" --out narration/01.mp3 [--provider yunwu|grok|say] [--voice <id>] [--speed 1.18]
 //        node tts.mjs --lines lines.json --outdir narration/    (batch: [{id,text,voice?,speed?}])
 //
 // Keys come from the ENVIRONMENT ONLY (fail loud if missing — never bake keys into the repo):
 //   YUNWU_API_KEY        for the yunwu provider
 //   OPENROUTER_API_KEY   for the grok provider
+// `say` needs ffmpeg for the mp3 (PROMO_FFMPEG, else ffmpeg on PATH).
 // Swap in your own provider by editing synth() — the rest of the pipeline only depends on
 // "id -> id.mp3" landing in --outdir.
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
+import { promisify } from 'node:util'
 
+const run = promisify(execFile)
 const OR_URL = 'https://openrouter.ai/api/v1/audio/speech'
 const OR_MODEL = process.env.VOICE_TTS_MODEL ?? 'x-ai/grok-voice-tts-1.0'
 const YUNWU_URL = process.env.YUNWU_TTS_URL ?? 'https://yunwu.ai/minimax/v1/t2a_v2'
+const FFMPEG = process.env.PROMO_FFMPEG ?? 'ffmpeg'
 
 function requireEnv(name) {
   const v = process.env[name]?.trim()
@@ -70,7 +78,22 @@ async function synthYunwu(text, voice, speed) {
   return Buffer.from(body.data.audio, 'hex')
 }
 
+async function synthSay(text, voice, speed) {
+  // `say` speaks about 175 words a minute; --speed scales that rate the way it does for the other providers.
+  const dir = await mkdtemp(join(tmpdir(), 'tts-say-'))
+  try {
+    const aiff = join(dir, 'line.aiff')
+    const mp3 = join(dir, 'line.mp3')
+    await run('say', ['-v', voice ?? 'Tingting', '-r', String(Math.round(175 * (speed ?? 1))), '-o', aiff, text.replace(/\s*\n\s*/g, '，')])
+    await run(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-y', '-i', aiff, '-ac', '1', '-ar', '32000', '-b:a', '128k', mp3])
+    return await readFile(mp3)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
 async function synth(text, voice, provider, speed) {
+  if (provider === 'say') return synthSay(text, voice, speed)
   return provider === 'grok' ? synthGrok(text, voice) : synthYunwu(text, voice, speed)
 }
 
@@ -98,6 +121,6 @@ if (get('text')) {
     console.log(out)
   }
 } else {
-  console.error('usage: tts.mjs --text "..." --out f.mp3 | --lines lines.json --outdir dir  [--provider yunwu|grok]')
+  console.error('usage: tts.mjs --text "..." --out f.mp3 | --lines lines.json --outdir dir  [--provider yunwu|grok|say]')
   process.exit(1)
 }

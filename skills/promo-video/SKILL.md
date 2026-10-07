@@ -125,7 +125,8 @@ is derived purely from file mtimes vs. the event log — the filesystem *is* the
 ### 8 · Narrate
 `node toolkit/tts.mjs --lines lines.json --outdir narration/`. `lines.json` is `[{id,text,voice?,speed?}]`
 → writes `<id>.mp3` deterministically. Keys are env-only (`YUNWU_API_KEY` or `OPENROUTER_API_KEY`);
-swap providers by editing `synth()`. One voice for the whole film — a mid-film timbre change is a
+`--provider say` (macOS `say`, voice Tingting, no key) is a placeholder for internal review — label every cut that
+uses it 「占位配音」 and re-voice the final film. Swap providers by editing `synth()`. One voice for the whole film — a mid-film timbre change is a
 visible defect (rulings §16,21). Captions live in `captions.json`
 `[{t0Ms,t1Ms,text,audio}]`, each cue ≥ its mp3 duration + 400ms.
 
