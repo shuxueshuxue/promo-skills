@@ -6,8 +6,8 @@ body { margin: 0; }
 .chouka-card.picked { box-shadow: inset 0 0 0 2px var(--em-foreground-success); }
 .chouka-card.rejected { opacity: 0.6; }
 .chouka-card .media { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--em-radius-control); background: var(--em-background-3); display: block; }
-.chouka-card .text { white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
-.chouka-card.open .text { -webkit-line-clamp: unset; display: block; }
+.chouka-card .text { max-height: 10em; overflow: hidden; }
+.chouka-card.open .text { max-height: none; }
 .chouka-card .critic { background: var(--em-background-3); border-radius: var(--em-radius-control); padding: var(--em-spacing-xs) var(--em-spacing-sm); }
 .slot-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--em-spacing-sm); }
 .tag { border-radius: 999px; padding: 0 var(--em-spacing-sm); background: var(--em-background-3); white-space: nowrap; }

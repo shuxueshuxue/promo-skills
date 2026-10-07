@@ -6,6 +6,7 @@ import { f, me, $, html, render } from '/_gugu/1/glue.js'
 import { KINDS, feedbackOf, pickOf, roundComplete, roundSummary, roundsInOrder, slotOf, statusOf } from './model.js'
 
 const ctx = await window.gugu.getContext()
+const md = await window.gugu.markdown()
 const chatId = f.entry.chat ?? ctx.chat?.id
 let members = ctx.chat?.members ?? []
 const now = () => new Date().toISOString()
@@ -188,7 +189,7 @@ $('#shared').addEventListener('click', async (event) => {
 })
 
 const money = (usd) => (usd ? `$${usd.toFixed(usd < 1 ? 3 : 2)}` : '$0')
-const seconds = (s) => (s >= 90 ? `${Math.round(s / 60)} 分` : `${Math.round(s)} 秒`)
+const seconds = (s) => (s >= 90 ? `用时 ${Math.round(s / 60)} 分钟` : `用时 ${Math.round(s)} 秒`)
 const tokens = (t) => (t >= 1000 ? `约 ${(t / 1000).toFixed(1)}k tok` : t ? `约 ${t} tok` : '')
 
 function cardView(id, card) {
@@ -201,7 +202,7 @@ function cardView(id, card) {
     <article class="card chouka-card ${status.state === 'picked' ? 'picked' : ''} ${status.state === 'work' ? 'rejected' : ''} ${opened.has(id) ? 'open' : ''}" data-key="${id}">
       ${(card.files ?? []).map(mediaView)}
       <strong>${card.title}${card.version > 1 ? html` <small class="muted">第 ${card.version} 版</small>` : ''}</strong>
-      ${card.text ? html`<div class="text">${card.text}</div>` : ''}
+      ${card.text ? html`<div class="text" data-md="${id}"></div>` : ''}
       ${card.text && card.text.length > 160 ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
       ${note ? html`<div class="critic"><strong>评审 ${note.score}/10</strong> · ${note.comment}</div>` : ''}
       ${history.length ? html`<small class="muted">${history.map((h) => html`<span>${h.verdict === 'reject' ? '打回' : h.verdict === 'pick' ? '选了' : '批注'}${h.comment ? `：${h.comment}` : ''}（${nameOf(h.who)}）</span><br />`)}</small>` : ''}
@@ -251,6 +252,8 @@ function draw() {
       </section>`
     })}`)
   drawRoundForm()
+  // A card's text is markdown, drawn with gugu's own renderer — again after every render, which empties these boxes.
+  for (const box of document.querySelectorAll('[data-md]')) md.render(box, data.cards[box.dataset.md]?.text ?? '')
 }
 
 f.onChange(draw)
