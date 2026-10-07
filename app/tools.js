@@ -103,11 +103,11 @@ export const submit = {
     'Hand in one card for a round of a 抽卡台 card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat first with workspace_upload_file (give their item ids). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card.',
   inputSchema: {
     type: 'object',
-    required: ['board', 'round', 'title'],
+    required: ['board', 'round'],
     properties: {
       board: BOARD,
       round: { type: 'string', description: 'The round id, from board → askedOfYou.' },
-      title: { type: 'string', description: 'A few words the person can pick by.' },
+      title: { type: 'string', description: 'A few words the person can pick by. A new version keeps the old title (and text, files) unless you give them again.' },
       text: { type: 'string', description: 'The card itself in markdown: the narrative, the copy, the shot description, what a clip shows.' },
       files: { type: 'array', items: { type: 'string' }, description: 'Item ids of files in this chat (images, clips, audio) that are this card.' },
       card: { type: 'string', description: 'Your own card to revise (a new version of it). Someone else\'s card: pass it in parents instead.' },
@@ -122,20 +122,23 @@ export const submit = {
   },
   async run(args, { agent }) {
     if (!agent) throw new Error('submit is for agents (gugu stamps who calls)')
-    if (!args.text && !(args.files ?? []).length) throw new Error('a card needs text or files')
     const f = await openBoard(args.board)
     try {
       const round = f.data.rounds[args.round]
       if (!round) throw new Error(`no round ${args.round} on this table — see board → askedOfYou`)
       const at = now()
+      const own = args.card && f.data.cards[args.card]?.by === agent ? args.card : null
+      // A new version keeps what it does not say again (a revision that only redraws keeps its title and text).
+      const prev = own ? f.data.cards[own] : {}
       const fields = {
-        title: String(args.title),
-        text: String(args.text ?? ''),
-        files: (args.files ?? []).map(String),
-        model: args.model ? String(args.model) : null,
+        title: String(args.title ?? prev.title ?? ''),
+        text: String(args.text ?? prev.text ?? ''),
+        files: (args.files ?? prev.files ?? []).map(String),
+        model: args.model ? String(args.model) : prev.model ?? null,
         cost: { usd: Number(args.cost?.usd) || 0, seconds: Number(args.cost?.seconds) || 0, tokens: Number(args.cost?.tokens) || 0 },
       }
-      const own = args.card && f.data.cards[args.card]?.by === agent ? args.card : null
+      if (!fields.title) throw new Error('a card needs a title')
+      if (!fields.text && !fields.files.length) throw new Error('a card needs text or files')
       let id
       if (own) {
         id = own

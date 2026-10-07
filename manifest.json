@@ -1,7 +1,7 @@
 {
   "id": "choukatai",
   "name": "抽卡台",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "apiVersion": 3,
   "description": "抽卡台：一件要创意的活（宣传稿、宣传片、海报、文案），让群里几个不同模型的 Agent 同时各出几张卡，人只挑、批注、打回，选中的卡进下一轮混搭，直到成片。评审 Agent 先按导演法典筛一遍；拍真产品的片子照 promo-video skill 做。",
   "author": "promo-skills",
