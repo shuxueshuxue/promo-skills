@@ -1,0 +1,18 @@
+/* The card table. gugu's look is already on the page (guide apps-ui): only layout here, colours and sizes from --em-*. */
+body { margin: 0; }
+#app { padding: var(--em-spacing-lg); max-width: 1200px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--em-spacing-md); }
+.chouka-card { display: flex; flex-direction: column; gap: var(--em-spacing-sm); }
+.chouka-card.picked { box-shadow: inset 0 0 0 2px var(--em-foreground-success); }
+.chouka-card.rejected { opacity: 0.6; }
+.chouka-card .media { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--em-radius-control); background: var(--em-background-3); display: block; }
+.chouka-card .text { white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.chouka-card.open .text { -webkit-line-clamp: unset; display: block; }
+.chouka-card .critic { background: var(--em-background-3); border-radius: var(--em-radius-control); padding: var(--em-spacing-xs) var(--em-spacing-sm); }
+.slot-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--em-spacing-sm); }
+.tag { border-radius: 999px; padding: 0 var(--em-spacing-sm); background: var(--em-background-3); white-space: nowrap; }
+.tag.ok { background: var(--em-background-success); color: var(--em-foreground-success); }
+.tag.warn { background: var(--em-background-warning); color: var(--em-foreground-warning); }
+.tag.bad { background: var(--em-background-destructive); color: var(--em-foreground-destructive); }
+.fold { border: 1px dashed var(--em-border); border-radius: var(--em-radius-xl); display: flex; align-items: center; justify-content: center; min-height: 80px; }
+.agents { display: flex; flex-wrap: wrap; gap: var(--em-spacing-sm); }
