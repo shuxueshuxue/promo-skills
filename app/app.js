@@ -154,7 +154,7 @@ $('#r-start').onclick = async () => {
   $('#r-ask').value = ''
   $('#round-box').open = false
   say(`第 ${n} 轮开始了：叫了 ${chosen.map(nameOf).join('、')}`)
-  for (const agent of chosen) await tell(agent, `抽卡台第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。要求和参考都在卡桌上。`)
+  for (const agent of chosen) await tell(agent, `抽卡台第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。先用抽卡台的 board 工具读卡桌（要求和参考都在那里），每张卡用 submit 交。`)
 }
 
 // ─── 出图设置: settings.json in this App's own data folder (the image tool reads it); never in the shared table ───────
@@ -242,7 +242,9 @@ $('#say-send').onclick = async () => {
   })
   $('#say-box').close()
   const card = f.data.cards[cardId]
-  await tell(card?.by, `「${card?.title}」${verdict === 'reject' ? '被打回了' : '有一条新批注'}，看卡桌。`)
+  await tell(card?.by, verdict === 'reject'
+    ? `「${card?.title}」被打回了：用抽卡台的 board 工具看批注，再用 submit（带上 card）交新一版。`
+    : `「${card?.title}」有一条新批注：用抽卡台的 board 工具看。`)
 }
 
 // ─── the table ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -258,7 +260,7 @@ $('#shared').addEventListener('click', async (event) => {
   else if (act === 'unfold') (unfolded.has(slot) ? unfolded.delete(slot) : unfolded.add(slot), draw())
   else if (act === 'critic') {
     const r = f.data.rounds[round]
-    await tell(r.critic, `第 ${r.n} 轮有 ${roundSummary(f.data, round).count} 张卡等你评。`)
+    await tell(r.critic, `抽卡台第 ${r.n} 轮有 ${roundSummary(f.data, round).count} 张卡等你评：用抽卡台的 board 工具看卡，每张用 note 打分。`)
     say(`叫了评审 ${nameOf(r.critic)}`)
   }
 })

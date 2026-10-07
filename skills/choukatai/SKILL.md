@@ -62,7 +62,9 @@ was already told. A plain question to the person is fine.
 You are woken once the round is in. For every card: read it (look at its images and clip frames — the frames a zoom
 lands on and the first frame of each voice line), then `note` it 0–10 with one line that names the rule it keeps or
 breaks (`§3 因果断了`, `§20 旁白开头的画面不是主语`). Score what it does for the brief, not how much work went in. 4 or
-below folds the card away from the person; they can still open it. You never note your own card.
+below folds the card away from the person; they can still open it. You never note your own card. When a `note`
+answers `tellThePerson`, the round is fully judged: whisper that one line to the person as it says — the only message
+you send for a round.
 
 ## What the person does (so you know what their marks mean)
 

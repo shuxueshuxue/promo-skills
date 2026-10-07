@@ -153,7 +153,7 @@ export const submit = {
         woke = round.critic
       }
       await flushed(f)
-      if (woke) await gugu.send(woke, `抽卡台第 ${round.n} 轮的卡交齐了，等你评。`, { about: f.entry })
+      if (woke) await gugu.send(woke, `抽卡台第 ${round.n} 轮的卡交齐了，等你评：用抽卡台的 board 工具看卡，每张用 note 打分。`, { about: f.entry })
       return { card: id, version: f.data.cards[id].version, revised: Boolean(own), criticWoken: Boolean(woke) }
     } finally {
       f.close()
@@ -182,18 +182,18 @@ export const note = {
       if (!target) throw new Error(`no card ${card} on this table`)
       if (target.by === agent) throw new Error('that is your own card: the critic of a round is someone who did not hand in to it')
       f.data.notes[card] = { score: Math.max(0, Math.min(10, Number(score) || 0)), comment: String(comment), by: agent, at: now() }
-      // The round fully read: the person who opened it is told once, so they need not watch the table.
+      // The round fully read: the person who opened it is told once, by the critic — this program speaks as the
+      // person whose computer it runs on, and that is usually the one who opened the round (no whisper to oneself).
       const roundId = target.round
       const round = f.data.rounds[roundId]
-      let told = null
+      let tell = null
       const unread = Object.entries(f.data.cards).filter(([cid, c]) => c.round === roundId && !f.data.notes[cid]).length
       if (round && !round.readTold && unread === 0 && roundComplete(f.data, roundId) && round.by) {
         f.data.rounds[roundId].readTold = now()
-        told = round.by
+        tell = { to: round.by, text: `抽卡台第 ${round.n} 轮评完了，可以挑了。`, how: 'whisper this to the person with message_send (whisper: true, to_user_ids: [to]) in the chat of the card table — nothing else in the chat' }
       }
       await flushed(f)
-      if (told) await gugu.send(told, `抽卡台第 ${round.n} 轮评完了，可以挑了。`, { about: f.entry })
-      return { card, score: f.data.notes[card].score, toldThePerson: Boolean(told) }
+      return { card, score: f.data.notes[card].score, ...(tell ? { tellThePerson: tell } : {}) }
     } finally {
       f.close()
     }
