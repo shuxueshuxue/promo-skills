@@ -5,9 +5,13 @@ marked in-file. Keys come from the **environment only** — nothing here bakes i
 
 ## Install
 
+Copy the toolkit into the film's own folder and install there — `fragments/`, `renders/` and `review/` sit beside it,
+and every script finds them as `toolkit/..`:
+
 ```bash
-cd toolkit && npm install                 # review-server, ingest, orchestration adapter deps
-cd toolkit/renderer && npm install         # Remotion renderer (heavier)
+cp -r <this skill>/toolkit <film>/toolkit && cd <film>/toolkit
+npm install                                 # review-server, ingest, orchestration adapter deps
+(cd renderer && npm install)                # Remotion renderer (heavier)
 # capture needs Playwright on your capture machine:
 npm i -D @playwright/test && npx playwright install chromium
 ```
@@ -33,7 +37,7 @@ npm i -D @playwright/test && npx playwright install chromium
 | `OPENROUTER_API_KEY` | `tts.mjs` (grok) | required for that provider |
 | `VOICE_TTS_MODEL` | `tts.mjs` (grok) | override the model id |
 | `PROMO_TITLE`, `PORT` | `review-server.mjs` | UI title + bind port (bind to LAN so collaborators can watch) |
-| `PROMO_FFMPEG` | `capture/promo-assemble.mjs` | override the ffmpeg binary |
+| `PROMO_FFMPEG` | `capture/promo-assemble.mjs` | the ffmpeg binary; default: `ffmpeg` on PATH |
 | `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | orchestration reference | **your backend's** admin creds — env/`.env.local` only |
 
 ## The adapter you must write

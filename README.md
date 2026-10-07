@@ -5,7 +5,7 @@ product's own running UI, not by rebuilding it in motion graphics.**
 
 This is the distilled, reusable workflow behind a real 100-second product launch film,
 shot end-to-end (the night before a demo day) by an agent driving the actual app. Every
-rule in [`references/director-rulings.md`](references/director-rulings.md) was earned by a
+rule in [`director-rulings.md`](skills/promo-video/references/director-rulings.md) was earned by a
 real reviewer rejection.
 
 ## The idea in one line
@@ -22,12 +22,22 @@ Three tools, fused:
 | **Remotion** | render engine — React *is* the video (frame-driven, deterministic, re-renderable); "variants" are just different props |
 | **HyperFrames' knowledge structure** | the vocabulary of shooting techniques + the storyboard-then-approve-gate review loop |
 
+## Two ways to use it — one skill folder
+
+The skill is [`skills/promo-video/`](skills/promo-video/) (SKILL.md + references + toolkit + the worked example).
+Nothing is copied between the two uses:
+
+- **As a Claude Code skill** — copy that folder into `~/.claude/skills/` (or a project's `.claude/skills/`).
+- **As 抽卡台, a gugu App** (this branch, in progress) — the repo root is the App bundle: its manifest declares
+  `contributes.skills: "skills"`, so every agent session on a computer that has the App gets this same skill, and the
+  App's card table replaces the LAN review board.
+
 ## Quickstart
 
-1. **Read [`SKILL.md`](SKILL.md).** It is the workflow, top to bottom. Then keep
-   [`references/director-rulings.md`](references/director-rulings.md) open while you work.
-2. Install the toolkit: `cd toolkit && npm install` (and `cd toolkit/renderer && npm install`
-   for the Remotion renderer).
+1. **Read [`SKILL.md`](skills/promo-video/SKILL.md).** It is the workflow, top to bottom. Then keep
+   [`director-rulings.md`](skills/promo-video/references/director-rulings.md) open while you work.
+2. Copy `skills/promo-video/toolkit/` into your film's folder and install it there (`npm install`, and again in
+   `toolkit/renderer` for the Remotion renderer) — see the [toolkit README](skills/promo-video/toolkit/README.md).
 3. Run the fragment loop per feature: orchestrate state → capture HD → assemble → review →
    iterate. Then shoot the **grand take** and assemble the final cut.
 
@@ -48,24 +58,25 @@ Three tools, fused:
 ## Layout
 
 ```
-SKILL.md                     the workflow (start here)
-references/
-  director-rulings.md        the codex of scars — reject-driven rules (read alongside SKILL.md)
-  capture-real-product.md    HD-capture bench: what won (CDP shot-loop @2×) and what died, with reasons
-  orchestration-harness.md   forging realistic live state (the one product-specific adapter)
-  variants-techniques.md     the "变式" vocabulary — zoom-follow, narration-overlay, and how to add more
-  review-loop.md             the LAN review board protocol + status state machine
-  final-assembly.md          the grand-take approach + cutlist source-of-truth + QA gate
-  data-contracts.md          every JSON/TS schema in one place
-toolkit/                     runnable, product-agnostic tools (product-specific seams are marked)
-  review-server.mjs          zero-dep LAN review board
-  tts.mjs                    narration TTS (env-only keys; swap provider in synth())
-  ingest.mjs                 fragments → renderer manifest
-  capture/                   recorder-shotloop.ts (CDP HD recorder) + promo-assemble.mjs
-  orchestration/             service-role state harness (adapter you implement for your backend)
-  renderer/                  Remotion skeleton — lib/camera+edit+types, final/cutlist+FinalCut, QA
-examples/
-  gugu-case-study.md         the real run, end to end, as a worked example
+skills/promo-video/            the skill — one copy, read by Claude Code and by the gugu App
+  SKILL.md                     the workflow (start here)
+  references/
+    director-rulings.md        the codex of scars — reject-driven rules (read alongside SKILL.md)
+    capture-real-product.md    HD-capture bench: what won (CDP shot-loop @2×) and what died, with reasons
+    orchestration-harness.md   forging realistic live state (the one product-specific adapter)
+    variants-techniques.md     the "变式" vocabulary — zoom-follow, narration-overlay, and how to add more
+    review-loop.md             the LAN review board protocol + status state machine
+    final-assembly.md          the grand-take approach + cutlist source-of-truth + QA gate
+    data-contracts.md          every JSON/TS schema in one place
+  toolkit/                     runnable, product-agnostic tools (product-specific seams are marked)
+    review-server.mjs          zero-dep LAN review board
+    tts.mjs                    narration TTS (env-only keys; swap provider in synth())
+    ingest.mjs                 fragments → renderer manifest
+    capture/                   recorder-shotloop.ts (CDP HD recorder) + promo-assemble.mjs
+    orchestration/             service-role state harness (adapter you implement for your backend)
+    renderer/                  Remotion skeleton — lib/camera+edit+types, final/cutlist+FinalCut, QA
+  examples/
+    gugu-case-study.md         the real run, end to end, as a worked example
 ```
 
 ## What this is *not*

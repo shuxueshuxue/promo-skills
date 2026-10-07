@@ -59,6 +59,13 @@ beat is approved. Stage 9 is the **grand take** — do NOT ship a stitch of appr
 
 ## How to run it
 
+### Where it runs
+This skill folder stays as it is: copy `toolkit/` into the film's own folder and work there —
+`<film>/toolkit/` (`npm install` there, and in `toolkit/renderer` for Remotion), `<film>/fragments/<id>/`,
+`<film>/renders/`, `<film>/review/`. Every script finds the film's folder as `toolkit/..`. Capture and render on one
+machine (rulings §23): it needs Chromium (Playwright), ffmpeg (on PATH, or `PROMO_FFMPEG`) and a few GB of disk.
+Your shoot script imports `./capture/recorder-shotloop.ts` and runs under plain `node` (type stripping, Node ≥ 22.18).
+
 ### 0–1 · Understand → narrative → screenplay
 - Read the product's own docs and drive it yourself. Write a **feature list**, then fold it
   into ONE story with causal spine — every beat must earn the next (see rulings §3).
@@ -85,6 +92,11 @@ reusable; the actual writes are yours. See `references/orchestration-harness.md`
 - Perform like a human: hover/pause ≥300ms before clicks, type 60–90ms/char, let animations
   finish, hold 2s at head and tail. Record an event *before* each beat:
   `{tMs, label, box: locator.boundingBox(), zoom?}`.
+- **Read the box only once the page has stopped moving.** A smooth-scrolling page keeps gliding after the last wheel
+  event; a box read mid-glide is stale, and the camera pushes in on empty page. `ingest.mjs` refuses a box outside the
+  viewport (2026-10-07: a box at y=3158 of a 1000-high viewport filmed 0.97 s of white).
+- Frame rate depends on the page: product UI held 19–20 fps; an image-heavy marketing page held ~8 (q100 and q85 alike —
+  the composite is the bottleneck, not the JPEG). Watch `skippedTicks`.
 - `toolkit/capture/promo-assemble.mjs` turns `frames/` + per-frame epoch timestamps into a
   CFR mp4 and rebases the event timeline to video-relative `tMs`.
 - Why shot-loop and nothing else: `references/capture-real-product.md` has the full bench —
@@ -139,7 +151,13 @@ boxes, with a geometric pan-clamp so a zoomed card never exposes black bars. Cru
 (no duplicated geometry) and gates on: duration consistency (±0.5s, warn outside 90–110s);
 **blank-screen scan** — ffmpeg `blackdetect` (black + negated-white) inside the card interior, any
 solid frame ≥0.4s fails (no dead air, ever — rulings §20); and a **VO↔picture** frame dump at each
-cue's start+mid for the one check a machine can't make: is the on-screen subject the line's subject.
+cue's start+mid.
+
+Then **read those frames yourself** — the check this script once left to a human. Dump the focus frame of every zoom
+event too (event + 0.6 s), look at each, and say per beat whether the frame shows that beat's subject; hand the
+reviewer only the beats you flag. (2026-10-07: the blank scan caught a white push-in; its focus frame showed why — the
+box had been read mid-scroll — and the next take's focus frame showed the camera arriving half a beat before the tab
+switched.)
 
 ## Working method (how the night actually went — meta-rules)
 

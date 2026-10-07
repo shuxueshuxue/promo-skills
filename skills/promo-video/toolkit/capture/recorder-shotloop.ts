@@ -32,7 +32,19 @@ export type RecorderStats = {
   skippedTicks: number
 }
 
+export type RecorderOptions = {
+  /** 目标帧率，默认 20（实测 3200×2000 jpeg100 上限 ~30） */
+  fps?: number
+  /** jpeg 质量，默认 100 */
+  quality?: number
+  /** 期望的帧物理宽度（分辨率验证，默认 viewport.width × 2）；传 0 跳过验证 */
+  expectWidth?: number
+}
+
+// 只用可擦除的 TS（没有构造参数属性）：Node 自带的去类型就能跑，不必装 tsx。
 export class ShotLoopRecorder {
+  private page: Page
+  private opts: RecorderOptions
   private cdp: CDPSession | null = null
   private outDir = ''
   private framesDir = ''
@@ -44,17 +56,10 @@ export class ShotLoopRecorder {
   private inFlight = false
   private loopError: Error | null = null
 
-  constructor(
-    private page: Page,
-    private opts: {
-      /** 目标帧率，默认 20（实测 3200×2000 jpeg100 上限 ~30） */
-      fps?: number
-      /** jpeg 质量，默认 100 */
-      quality?: number
-      /** 期望的帧物理宽度（分辨率验证，默认 viewport.width × 2）；传 0 跳过验证 */
-      expectWidth?: number
-    } = {},
-  ) {}
+  constructor(page: Page, opts: RecorderOptions = {}) {
+    this.page = page
+    this.opts = opts
+  }
 
   isActive(): boolean {
     return this.active
