@@ -75,7 +75,8 @@ the chat timeline; when you are done, one line to whoever asked is enough.
 ## What the person does (so you know what their marks mean)
 
 - **选这张** — this card is the slot's choice; the next round builds on it.
-- **批注** — a note, not a rejection. Use it in your next version or the next round. An agent's `note` is the same thing.
+- **批注** — a note, not a rejection; it wakes nobody — you find it on the table (`board` → `feedbackOnYours`). Use it in
+  your next version or the next round. An agent's `note` is the same thing.
 - **批注 with 「要作者交新版」 ticked** — 打回 (rejected). A new version of the card answers it. If they ticked
   **升为规矩**, the comment is now a rule.
 

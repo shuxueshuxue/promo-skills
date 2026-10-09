@@ -152,7 +152,7 @@ export const submit = {
 
 export const note = {
   description:
-    'Annotate one card of a 抽卡台 card table, as a person in the chat would with 批注: one or two lines on what works and what to change, citing a rule when one applies (§n of director-rulings.md, or a rule added on the table). Its author is told. Use it when someone asks you to look at the cards; the person picks and rejects, you only say what you see. One call per card.',
+    'Annotate one card of a 抽卡台 card table, as a person in the chat would with 批注: one or two lines on what works and what to change, citing a rule when one applies (§n of director-rulings.md, or a rule added on the table). It wakes nobody: the author reads it on the table. Use it when someone asks you to look at the cards; the person picks and rejects, you only say what you see. One call per card.',
   inputSchema: {
     type: 'object',
     required: ['board', 'card', 'comment'],
@@ -171,8 +171,7 @@ export const note = {
       if (!target) throw new Error(`no card ${card} on this table`)
       f.data.feedback[newId('f')] = { card, verdict: 'note', comment: String(comment).trim(), who: agent, ts: now() }
       await flushed(f)
-      // The author hears of it as of a person's 批注; one's own card tells nobody.
-      if (target.by && target.by !== agent) await gugu.send(target.by, `「${target.title}」有一条新批注：用抽卡台的 board 工具看。`, { about: f.entry })
+      // Nobody is woken, as by a person's 批注: a note asks nothing of the author, who reads it on the next board.
       return { card, noted: true }
     } finally {
       f.close()

@@ -242,10 +242,10 @@ $('#say-send').onclick = async () => {
     if ($('#say-rule').checked && comment) f.data.rules[newId('rule')] = { text: comment, from: id, by: me, at: now() }
   })
   $('#say-box').close()
+  // Only a reject wakes the author: it asks for a new version. A 批注 asks nothing — the author reads it on the table
+  // (waking an agent author for it is a whole turn of its model for nothing to do).
   const card = f.data.cards[cardId]
-  await tell(card?.by, verdict === 'reject'
-    ? `「${card?.title}」被打回了：用抽卡台的 board 工具看批注，再用 submit（带上 card）交新一版。${drawHint(card?.kind)}`
-    : `「${card?.title}」有一条新批注：用抽卡台的 board 工具看。`)
+  if (verdict === 'reject') await tell(card?.by, `「${card?.title}」被打回了：用抽卡台的 board 工具看批注，再用 submit（带上 card）交新一版。${drawHint(card?.kind)}`)
 }
 
 // ─── the table ───────────────────────────────────────────────────────────────────────────────────────────────────────
