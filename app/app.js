@@ -12,12 +12,13 @@ const chatId = f.entry.chat ?? ctx.chat?.id
 let members = ctx.chat?.members ?? []
 const now = () => new Date().toISOString()
 const newId = (prefix) => `${prefix}${crypto.randomUUID().slice(0, 8)}`
-const nameOf = (id) => members.find((m) => m.id === id)?.name ?? (id ? id.slice(5, 13) : '?')
+// A member who left is no longer in the chat's members: the table keeps the names it has seen, so their cards still say who.
+const nameOf = (id) => members.find((m) => m.id === id)?.name ?? f.data.names?.[id] ?? '已退群的成员'
 const agents = () => members.filter((m) => m.kind === 'agent')
 
 // A table made by an agent may lack a map: made once, here, so every write below can rely on it.
 f.transact(() => {
-  for (const key of ['rounds', 'cards', 'notes', 'feedback', 'rules']) if (!f.data[key] || typeof f.data[key] !== 'object') f.data[key] = {}
+  for (const key of ['rounds', 'cards', 'notes', 'feedback', 'rules', 'names']) if (!f.data[key] || typeof f.data[key] !== 'object') f.data[key] = {}
   if (f.data.brief === undefined) f.data.brief = window.gugu.text('')
 })
 
@@ -100,15 +101,7 @@ $('#controls').innerHTML = `
       <div class="row"><button class="primary" id="img-save">保存并检查</button><button id="img-clear">清掉密钥</button><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">获取密钥</a></div>
       <small class="muted" id="img-where"></small>
     </div>
-  </details>
-  <dialog id="say-box">
-    <div class="stack">
-      <strong id="say-title"></strong>
-      <textarea id="say-text" rows="4" placeholder="哪里不对、下一版怎么改"></textarea>
-      <label><input type="checkbox" id="say-rule" /> 同时升为规矩（以后每一轮都照它）</label>
-      <div class="row"><button id="say-cancel">取消</button><button class="primary" id="say-send">提交</button></div>
-    </div>
-  </dialog>`
+  </details>`
 
 $('#r-kind').innerHTML = KINDS.map((k) => `<option>${k}</option>`).join('')
 try {
@@ -321,7 +314,7 @@ function draw() {
       const s = roundSummary(data, id)
       const done = roundComplete(data, id)
       return html`<div class="row" data-key="${id}"><span class="tag">第 ${r.n} 轮 · ${r.slot} · ${s.count} 张${s.usd ? ` · ${money(s.usd)}` : ''}${s.seconds ? ` · ${seconds(s.seconds)}` : ''}${s.tokens ? ` · ${tokens(s.tokens)}` : ''}${done ? ' · 交齐了' : ''}</span>
-        <label class="row"><small>评审</small><select data-round-critic="${id}"><option value="">（无）</option>${agents().map((a) => html`<option value="${a.id}" ${a.id === r.critic ? html`selected` : ''}>${a.name}</option>`)}</select></label>
+        <label class="critic-pick"><small>评审</small><select data-round-critic="${id}"><option value="">（无）</option>${agents().map((a) => html`<option value="${a.id}" ${a.id === r.critic ? html`selected` : ''}>${a.name}</option>`)}</select></label>
         ${r.critic && s.count ? html`<button class="sm" data-act="critic" data-round="${id}">叫评审</button>` : ''}</div>`
     })}</div>` : html`<gugu-empty icon="checklist"><strong>还没有卡</strong><small>写好需求，开第一轮</small></gugu-empty>`}
     ${slots.map((slot) => {
@@ -343,12 +336,18 @@ function draw() {
   for (const box of document.querySelectorAll('[data-md]')) md.render(box, data.cards[box.dataset.md]?.text ?? '')
 }
 
+function rememberNames() {
+  const changed = members.filter((m) => m.name && f.data.names[m.id] !== m.name)
+  if (changed.length) f.transact(() => { for (const m of changed) f.data.names[m.id] = m.name })
+}
 f.onChange(draw)
 window.gugu.onContextChanged((next) => {
   if (next?.chat?.members) {
     members = next.chat.members
+    rememberNames()
     draw()
   }
 })
+rememberNames()
 draw()
 window.gugu.setTabTitle?.('抽卡台')?.catch?.((error) => say(`标题没改成：${error.message}`, 'error'))

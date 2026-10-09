@@ -12,6 +12,15 @@
   <section id="controls" class="stack"></section>
   <section id="shared" class="stack"></section>
 </main>
+<!-- outside #controls: a .stack zeroes its children's margins, and a modal dialog is centred by margin: auto -->
+<dialog id="say-box">
+  <div class="stack">
+    <strong id="say-title"></strong>
+    <textarea id="say-text" rows="4" placeholder="哪里不对、下一版怎么改"></textarea>
+    <label><input type="checkbox" id="say-rule" /> 同时升为规矩（以后每一轮都照它）</label>
+    <div class="row"><button id="say-cancel">取消</button><button class="primary" id="say-send">提交</button></div>
+  </div>
+</dialog>
 <script type="module" src="app/app.js"></script>
 </body>
 </html>

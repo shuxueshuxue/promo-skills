@@ -16,3 +16,5 @@ body { margin: 0; }
 .tag.bad { background: var(--em-background-destructive); color: var(--em-foreground-destructive); }
 .fold { border: 1px dashed var(--em-border); border-radius: var(--em-radius-xl); display: flex; align-items: center; justify-content: center; min-height: 80px; }
 .agents { display: flex; flex-wrap: wrap; gap: var(--em-spacing-sm); }
+.critic-pick { flex-direction: row; align-items: center; flex: none; }
+.critic-pick select { width: auto; }

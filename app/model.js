@@ -8,6 +8,7 @@
 //   notes     { [cardId]: { score, comment, by, at } }          the critic's read of a card
 //   feedback  { [id]: { card, verdict: note | reject | pick, comment, who, ts } }   append-only, as review/feedback.jsonl was
 //   rules     { [id]: { text, from, by, at } }                   rules added on this table, on top of director-rulings.md
+//   names     { [user:…]: name }                                 members' names as the page last saw them (who wrote a card after they left)
 // Everything many people and agents add to is a map by id (no arrays to fight over).
 
 export const KINDS = ['叙事', '文案', '分镜', '变式', '片头', '整片', '宣传稿', '其他']
