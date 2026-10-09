@@ -2,11 +2,11 @@
 //
 // The table is one live JSON file of a chat (`*.chouka.json`):
 //   brief     what the table is for ({"$text": …}: typed in together)
-//   rounds    { [id]: { n, kind, slot, ask, each, agents: [user:…], critic, refs: [cardId], by, at } }
+//   rounds    { [id]: { n, kind, slot, ask, each, agents: [user:…], refs: [cardId], by, at } }
 //   cards     { [id]: { round, slot, kind, by, model, title, text, files: [itemId], parents: [cardId], version, at, updatedAt,
 //                       cost: { usd, seconds, tokens } } }
-//   notes     { [cardId]: { score, comment, by, at } }          the critic's read of a card
-//   feedback  { [id]: { card, verdict: note | reject | pick, comment, who, ts } }   append-only, as review/feedback.jsonl was
+//   feedback  { [id]: { card, verdict: note | reject | pick, comment, who, ts } }   append-only, as review/feedback.jsonl was;
+//             a note is anyone's — a person's or an agent's they asked to look; reject and pick are the person's
 //   rules     { [id]: { text, from, by, at } }                   rules added on this table, on top of director-rulings.md
 //   names     { [user:…]: name }                                 members' names as the page last saw them (who wrote a card after they left)
 // Everything many people and agents add to is a map by id (no arrays to fight over).
@@ -16,9 +16,6 @@ export const KINDS = ['叙事', '文案', '分镜', '变式', '片头', '整片'
 export const drawHint = (kind) => (kind === '分镜' ? '画面用抽卡台的 image 工具出。' : '')
 
 const time = (iso) => Date.parse(iso ?? '') || 0
-
-/** The critic's note is on an earlier version: the card was revised after it (one note a card, the latest). */
-export const noteStale = (data, id) => Boolean(data.notes[id] && data.cards[id] && time(data.notes[id].at) < time(data.cards[id].updatedAt ?? data.cards[id].at))
 
 /** Every card's feedback, oldest first. */
 export function feedbackOf(data, cardId) {
@@ -52,7 +49,7 @@ export function statusOf(data, cardId) {
   if (pickOf(data, slotOf(data, card)) === cardId && !(last?.verdict === 'reject' && updated <= time(last.ts))) {
     return { state: 'picked', label: '已选', rejects }
   }
-  if (!last) return data.notes?.[cardId] ? { state: 'review', label: '待你挑', rejects } : { state: 'new', label: '待评审', rejects }
+  if (!last) return { state: 'new', label: '待你挑', rejects }
   if (last.verdict === 'reject') {
     return updated > time(last.ts)
       ? { state: 'review', label: `待复审 第 ${rejects + 1} 轮`, rejects }

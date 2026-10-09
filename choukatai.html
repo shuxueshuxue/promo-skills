@@ -16,9 +16,10 @@
 <dialog id="say-box">
   <div class="stack">
     <strong id="say-title"></strong>
-    <textarea id="say-text" rows="4" placeholder="哪里不对、下一版怎么改"></textarea>
+    <textarea id="say-text" rows="4" placeholder="好在哪、哪里要改"></textarea>
+    <label id="say-reject-row"><input type="checkbox" id="say-reject" /> <strong>要作者交新版（打回）</strong></label>
     <label><input type="checkbox" id="say-rule" /> 同时升为规矩（以后每一轮都照它）</label>
-    <div class="row"><button id="say-cancel">取消</button><button class="primary" id="say-send">提交</button></div>
+    <div class="row"><button id="say-cancel">取消</button><button class="primary" id="say-send">提交批注</button></div>
   </div>
 </dialog>
 <script type="module" src="app/app.js"></script>

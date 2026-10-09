@@ -1,9 +1,10 @@
-// 抽卡台 — the card table. Several agents (different models, different harnesses) each hand in cards for a round; a
-// critic agent reads them against the director's rulings first; the person picks, annotates or rejects. Picked cards are
-// what the next round mixes. Review rules are promo-skills' (skills/promo-video/references/review-loop.md): reject or
-// annotate, never "approve"; a reject is answered by a newer version of the card.
+// 抽卡台 — the card table. Several agents (different models, different harnesses) each hand in cards for a round; the
+// people in the chat annotate them (批注 — an agent they ask to look annotates the same way), pick one or send one back for
+// a new version. Picked cards are what the next round mixes. Review rules are promo-skills'
+// (skills/promo-video/references/review-loop.md): reject or annotate, never "approve"; a reject is answered by a newer
+// version of the card.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, drawHint, feedbackOf, noteStale, pickOf, roundComplete, roundSummary, roundsInOrder, slotOf, statusOf } from './model.js'
+import { KINDS, drawHint, feedbackOf, pickOf, roundComplete, roundSummary, roundsInOrder, slotOf, statusOf } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -18,7 +19,7 @@ const agents = () => members.filter((m) => m.kind === 'agent')
 
 // A table made by an agent may lack a map: made once, here, so every write below can rely on it.
 f.transact(() => {
-  for (const key of ['rounds', 'cards', 'notes', 'feedback', 'rules', 'names']) if (!f.data[key] || typeof f.data[key] !== 'object') f.data[key] = {}
+  for (const key of ['rounds', 'cards', 'feedback', 'rules', 'names']) if (!f.data[key] || typeof f.data[key] !== 'object') f.data[key] = {}
   if (f.data.brief === undefined) f.data.brief = window.gugu.text('')
 })
 
@@ -87,7 +88,6 @@ $('#controls').innerHTML = `
       </div>
       <label>这一轮的要求 <textarea id="r-ask" rows="2" placeholder="可以空着：照需求和已选的卡来"></textarea></label>
       <fieldset><legend>谁来出卡</legend><div id="r-agents" class="agents"></div></fieldset>
-      <label>评审 <select id="r-critic"></select></label>
       <small class="muted" id="r-refs"></small>
       <div class="row"><button class="primary" id="r-start">开始</button></div>
     </div>
@@ -118,8 +118,6 @@ function drawRoundForm() {
   render($('#r-agents'), list.length
     ? html`${list.map((a) => html`<label data-key="${a.id}"><input type="checkbox" data-agent="${a.id}" ${chosenAgents.has(a.id) ? html`checked` : ''} /> <gugu-avatar user="${a.id}" size="xs"></gugu-avatar> ${a.name}</label>`)}`
     : html`<small class="muted">这个对话里还没有 Agent：先把几个不同模型的 Agent 拉进来。</small>`)
-  const critic = $('#r-critic').value
-  render($('#r-critic'), html`<option value="">（不要评审）</option>${list.map((a) => html`<option value="${a.id}" ${a.id === critic ? html`selected` : ''}>${a.name}</option>`)}`)
   const picked = pickedCards()
   $('#r-refs').textContent = picked.length ? `参考（已选的卡）：${picked.map(([, c]) => c.title).join('、')}` : ''
 }
@@ -140,10 +138,9 @@ $('#r-start').onclick = async () => {
   const kind = $('#r-kind').value
   const slot = $('#r-slot').value.trim() || kind
   const each = Math.max(1, Math.min(5, Number($('#r-each').value) || 1))
-  const critic = $('#r-critic').value || null
   const n = Object.keys(f.data.rounds).length + 1
   const id = newId('r')
-  f.data.rounds[id] = { n, kind, slot, ask: $('#r-ask').value.trim(), each, agents: chosen, critic, refs: pickedCards().map(([cardId]) => cardId), by: me, at: now() }
+  f.data.rounds[id] = { n, kind, slot, ask: $('#r-ask').value.trim(), each, agents: chosen, refs: pickedCards().map(([cardId]) => cardId), by: me, at: now() }
   $('#r-ask').value = ''
   $('#round-box').open = false
   say(`第 ${n} 轮开始了：叫了 ${chosen.map(nameOf).join('、')}`)
@@ -214,20 +211,31 @@ $('#image-box').addEventListener('toggle', () => {
 })
 loadImageSettings().catch((error) => say(`出图设置读不出来：${error.message}`, 'error'))
 
-// ─── annotate / reject: one dialog, drawn once ───────────────────────────────────────────────────────────────────────
-let pending = null // { card, verdict }
-function ask(cardId, verdict) {
-  pending = { card: cardId, verdict }
-  $('#say-title').textContent = `${verdict === 'reject' ? '打回' : '批注'}：${f.data.cards[cardId]?.title ?? ''}`
+// ─── 批注: one dialog, drawn once. Ticking 「要作者交新版」 makes it a reject (the author is asked for a new version) ───────
+let pending = null // the card id
+function ask(cardId) {
+  pending = cardId
+  $('#say-title').textContent = `批注：${f.data.cards[cardId]?.title ?? ''}`
   $('#say-text').value = ''
+  $('#say-reject').checked = false
   $('#say-rule').checked = false
+  drawSayBox()
   $('#say-box').showModal()
 }
+function drawSayBox() {
+  const reject = $('#say-reject').checked
+  $('#say-send').textContent = reject ? '打回并批注' : '提交批注'
+  $('#say-send').classList.toggle('danger', reject)
+  $('#say-send').classList.toggle('primary', !reject)
+  $('#say-reject-row').classList.toggle('on', reject)
+}
+$('#say-reject').onchange = drawSayBox
 $('#say-cancel').onclick = () => $('#say-box').close()
 $('#say-send').onclick = async () => {
   const comment = $('#say-text').value.trim()
-  if (!pending || (!comment && pending.verdict === 'note')) return
-  const { card: cardId, verdict } = pending
+  const verdict = $('#say-reject').checked ? 'reject' : 'note'
+  if (!pending || (!comment && verdict === 'note')) return
+  const cardId = pending
   const id = newId('f')
   f.transact(() => {
     f.data.feedback[id] = { card: cardId, verdict, comment, who: me, ts: now() }
@@ -241,31 +249,19 @@ $('#say-send').onclick = async () => {
 }
 
 // ─── the table ───────────────────────────────────────────────────────────────────────────────────────────────────────
-const unfolded = new Set() // slots whose folded cards are shown
 const opened = new Set() // cards shown in full
-$('#shared').addEventListener('click', async (event) => {
+let roundsOpen = false // 各轮用量, folded so the cards come first
+$('#shared').addEventListener('click', (event) => {
   const button = event.target.closest('[data-act]')
   if (!button) return
-  const { act, card, round, slot } = button.dataset
+  const { act, card } = button.dataset
   if (act === 'pick') f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }
-  else if (act === 'note' || act === 'reject') ask(card, act)
+  else if (act === 'note') ask(card)
   else if (act === 'open') (opened.has(card) ? opened.delete(card) : opened.add(card), draw())
-  else if (act === 'unfold') (unfolded.has(slot) ? unfolded.delete(slot) : unfolded.add(slot), draw())
-  else if (act === 'critic') {
-    const r = f.data.rounds[round]
-    await tell(r.critic, `抽卡台第 ${r.n} 轮有 ${roundSummary(f.data, round).count} 张卡等你评：用抽卡台的 board 工具看卡，每张用 note 打分。`)
-    say(`叫了评审 ${nameOf(r.critic)}`)
-  }
 })
-// A round's critic, changed by the person (one that went quiet, or a model they trust more): woken anew by 叫评审.
-$('#shared').addEventListener('change', (event) => {
-  const round = event.target.dataset?.roundCritic
-  if (!round || !f.data.rounds[round]) return
-  f.transact(() => {
-    f.data.rounds[round].critic = event.target.value || null
-    f.data.rounds[round].criticWoken = null
-  })
-})
+$('#shared').addEventListener('toggle', (event) => {
+  if (event.target.id === 'rounds-box') roundsOpen = event.target.open
+}, true)
 
 const money = (usd) => (usd ? `$${usd.toFixed(usd < 1 ? 3 : 2)}` : '$0')
 const seconds = (s) => (s >= 90 ? `用时 ${Math.round(s / 60)} 分钟` : `用时 ${Math.round(s)} 秒`)
@@ -273,7 +269,6 @@ const tokens = (t) => (t >= 1000 ? `约 ${(t / 1000).toFixed(1)}k tok` : t ? `�
 
 function cardView(id, card) {
   const status = statusOf(f.data, id)
-  const note = f.data.notes[id]
   const history = feedbackOf(f.data, id)
   const tone = status.state === 'picked' ? 'ok' : status.state === 'work' ? 'bad' : status.state === 'review' ? 'warn' : ''
   const cost = [card.cost?.usd ? money(card.cost.usd) : '', card.cost?.seconds ? seconds(card.cost.seconds) : '', tokens(card.cost?.tokens)].filter(Boolean).join(' · ')
@@ -283,7 +278,6 @@ function cardView(id, card) {
       <strong>${card.title}${card.version > 1 ? html` <small class="muted">第 ${card.version} 版</small>` : ''}</strong>
       ${card.text ? html`<div class="text" data-md="${id}"></div>` : ''}
       ${card.text && card.text.length > 160 ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
-      ${note ? html`<div class="critic"><strong>评审 ${note.score}/10</strong>${noteStale(f.data, id) ? '（评的是上一版）' : ''} · ${note.comment}</div>` : ''}
       ${history.length ? html`<small class="muted">${history.map((h) => html`<span>${h.verdict === 'reject' ? '打回' : h.verdict === 'pick' ? '选了' : '批注'}${h.comment ? `：${h.comment}` : ''}（${nameOf(h.who)}）</span><br />`)}</small>` : ''}
       <div class="row">
         <gugu-avatar user="${card.by}" size="xs"></gugu-avatar>
@@ -294,7 +288,6 @@ function cardView(id, card) {
       <div class="row">
         ${status.state === 'picked' ? '' : html`<button data-act="pick" data-card="${id}">选这张</button>`}
         <button data-act="note" data-card="${id}">批注</button>
-        <button class="danger" data-act="reject" data-card="${id}">打回</button>
       </div>
     </article>`
 }
@@ -310,24 +303,19 @@ function draw() {
   $('#rules-box').querySelector('summary').textContent = `导演法典 · 23 + ${rules.length} 条`
 
   render($('#shared'), html`
-    ${rounds.length ? html`<div class="stack">${rounds.map(([id, r]) => {
+    ${rounds.length ? html`<details class="card" id="rounds-box" ${roundsOpen ? html`open` : ''}><summary>各轮用量 · ${rounds.length} 轮</summary><div class="stack">${rounds.map(([id, r]) => {
       const s = roundSummary(data, id)
       const done = roundComplete(data, id)
-      return html`<div class="row" data-key="${id}"><span class="tag">第 ${r.n} 轮 · ${r.slot} · ${s.count} 张${s.usd ? ` · ${money(s.usd)}` : ''}${s.seconds ? ` · ${seconds(s.seconds)}` : ''}${s.tokens ? ` · ${tokens(s.tokens)}` : ''}${done ? ' · 交齐了' : ''}</span>
-        <label class="critic-pick"><small>评审</small><select data-round-critic="${id}"><option value="">（无）</option>${agents().map((a) => html`<option value="${a.id}" ${a.id === r.critic ? html`selected` : ''}>${a.name}</option>`)}</select></label>
-        ${r.critic && s.count ? html`<button class="sm" data-act="critic" data-round="${id}">叫评审</button>` : ''}</div>`
-    })}</div>` : html`<gugu-empty icon="checklist"><strong>还没有卡</strong><small>写好需求，开第一轮</small></gugu-empty>`}
+      return html`<small data-key="${id}">第 ${r.n} 轮 · ${r.slot} · ${s.count} 张${s.usd ? ` · ${money(s.usd)}` : ''}${s.seconds ? ` · ${seconds(s.seconds)}` : ''}${s.tokens ? ` · ${tokens(s.tokens)}` : ''}${done ? ' · 交齐了' : ''}</small>`
+    })}</div></details>` : html`<gugu-empty icon="checklist"><strong>还没有卡</strong><small>写好需求，开第一轮</small></gugu-empty>`}
     ${slots.map((slot) => {
       const inSlot = cards.filter(([, card]) => slotOf(data, card) === slot)
         .sort(([, a], [, b]) => (data.rounds[a.round]?.n ?? 0) - (data.rounds[b.round]?.n ?? 0) || (a.at ?? '').localeCompare(b.at ?? ''))
-      const folded = inSlot.filter(([id]) => (data.notes[id]?.score ?? 10) <= 4 && statusOf(data, id).state !== 'picked')
-      const shown = unfolded.has(slot) ? inSlot : inSlot.filter((entry) => !folded.includes(entry))
       const pick = pickOf(data, slot)
       return html`<section class="stack" data-key="slot:${slot}">
         <div class="slot-head"><h3>${slot}</h3>${pick ? html`<span class="tag ok">已选 · ${data.cards[pick]?.title}</span>` : ''}<small class="muted">${inSlot.length} 张</small></div>
         <div class="cards">
-          ${shown.map(([id, card]) => cardView(id, card))}
-          ${folded.length ? html`<button class="fold" data-act="unfold" data-slot="${slot}">${unfolded.has(slot) ? '收起评审折叠的卡' : `评审折叠了 ${folded.length} 张（4 分及以下），点开看`}</button>` : ''}
+          ${inSlot.map(([id, card]) => cardView(id, card))}
         </div>
       </section>`
     })}`)

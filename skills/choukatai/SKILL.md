@@ -2,16 +2,16 @@
 name: choukatai
 description: >-
   Work a 抽卡台 (card table) in gugu: several agents of different models each hand in cards for a creative round —
-  a narrative, copy, a storyboard frame, a clip variant, a cut — a critic agent scores them against the director's
-  rulings, and a person picks, annotates or rejects. Use when you are woken about a .chouka.json file, or asked to
-  draw cards, judge cards or answer a rejected card. For filming a real product, follow the promo-video skill.
+  a narrative, copy, a storyboard frame, a clip variant, a cut — and the people in the chat annotate, pick or reject
+  them. Use when you are woken about a .chouka.json file, or asked to draw cards, look at cards or answer a rejected
+  card. For filming a real product, follow the promo-video skill.
 ---
 
 # 抽卡台 — drawing cards with several agents
 
 Creativity in practice is drawing cards: many genuinely different tries, a person who picks, and the picks mixed into
 the next round. On a 抽卡台 table you are one of several agents — usually of different models — so **your card is worth
-the most when it is unlike the others'**. The person only picks, annotates and rejects; the rules come from
+the most when it is unlike the others'**. The people in the chat annotate, pick and reject; the rules come from
 `promo-video/references/director-rulings.md` (23 rules, every one a past rejection) plus the rules added on the table.
 
 ## The tools
@@ -22,7 +22,7 @@ the most when it is unlike the others'**. The person only picks, annotates and r
 chat, or before an update added the tool — is still reachable: `catalog_call` with tool `choukatai__image` (or
 `choukatai__board`, …) runs it, even when `catalog_list` does not show it. Only if that fails too, say so to the
 person in one line — do not write the table file by hand, and do not call the App's services yourself: the tools stamp
-who you are and wake the critic, a hand edit does neither. **Never read 抽卡台's own settings file** (`settings.json` in
+who you are and tell whom it concerns, a hand edit does neither. **Never read 抽卡台's own settings file** (`settings.json` in
 the App's data folder): it holds the person's own key, which the `image` tool uses for you — read, it would go into
 your context and on to your model's provider.
 
@@ -33,8 +33,8 @@ on that file. It tells you:
 
 - `askedOfYou` — rounds that want cards from you: the kind (叙事 / 文案 / 分镜 / 变式 / 片头 / 整片 / 宣传稿), the slot,
   the person's ask, how many cards (`each`), how many you have handed in, and the picked cards to build on (`refs`);
-- `criticOf` — rounds you judge, and which cards still wait for your note;
 - `feedbackOnYours` — notes and rejects on your cards; `answered: false` means a new version is owed;
+- `cards` — every card with its status and the latest notes on it;
 - `rules.added` — rules this table promoted from rejections. They bind as hard as the 23.
 
 ## Handing in a card (`submit`)
@@ -63,19 +63,20 @@ on that file. It tells you:
 **Never post cards into the chat timeline**, and do not announce them: the table is where they live, and the person
 was already told. A plain question to the person is fine.
 
-## Judging a round (`note`)
+## When someone asks you to look at cards (`note`)
 
-You are woken once the round is in. For every card: read it (look at its images and clip frames — the frames a zoom
-lands on and the first frame of each voice line), then `note` it 0–10 with one line that names the rule it keeps or
-breaks (`§3 因果断了`, `§20 旁白开头的画面不是主语`). Score what it does for the brief, not how much work went in. 4 or
-below folds the card away from the person; they can still open it. You never note your own card. When a `note`
-answers `tellThePerson`, the round is fully judged: whisper that one line to the person as it says — the only message
-you send for a round.
+You look at cards when a person asks you to (in the chat, or in a whisper). Read the table with
+`board` first — the cards, their images and clip frames (the frames a zoom lands on and the first frame of each voice
+line), and the notes already on them. Then `note` each card you have something to say about: one or two lines on what
+works and what to change, naming the rule when one applies (`§3 因果断了`, `§20 旁白开头的画面不是主语`). No score: you
+say what you see, the person decides. Picking and rejecting are the person's, not yours. Notes go on the table, not into
+the chat timeline; when you are done, one line to whoever asked is enough.
 
 ## What the person does (so you know what their marks mean)
 
 - **选这张** — this card is the slot's choice; the next round builds on it.
-- **批注** — a note, not a rejection. Use it in your next version or the next round.
-- **打回** — rejected. A new version of the card answers it. If they ticked **升为规矩**, the comment is now a rule.
+- **批注** — a note, not a rejection. Use it in your next version or the next round. An agent's `note` is the same thing.
+- **批注 with 「要作者交新版」 ticked** — 打回 (rejected). A new version of the card answers it. If they ticked
+  **升为规矩**, the comment is now a rule.
 
 There is no "approve": a card is accepted when no reject of it is newer than its latest version.

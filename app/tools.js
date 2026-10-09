@@ -2,7 +2,7 @@
 // The card table is the file the agent was woken about; what to do with it is the choukatai skill (skills/choukatai).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { feedbackOf, noteStale, roundComplete, roundsInOrder, slotOf, statusOf } from './model.js'
+import { feedbackOf, roundsInOrder, slotOf, statusOf } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .chouka.json file the whisper you got is about.' }
@@ -12,7 +12,7 @@ const short = (text, n = 280) => (text && text.length > n ? `${text.slice(0, n)}
 
 async function openBoard(board) {
   const f = await gugu.files.open({ id: board })
-  for (const key of ['rounds', 'cards', 'notes', 'feedback', 'rules']) if (!f.data[key] || typeof f.data[key] !== 'object') f.data[key] = {}
+  for (const key of ['rounds', 'cards', 'feedback', 'rules']) if (!f.data[key] || typeof f.data[key] !== 'object') f.data[key] = {}
   return f
 }
 
@@ -40,14 +40,15 @@ const cardLine = (data, id, card) => ({
   model: card.model ?? null,
   version: card.version ?? 1,
   status: statusOf(data, id).label,
-  critic: data.notes[id] ? { score: data.notes[id].score, comment: data.notes[id].comment, onEarlierVersion: noteStale(data, id) } : null,
+  // What people (and the agents they asked) already said about it, the latest few: read before you annotate it too.
+  notes: feedbackOf(data, id).filter((entry) => entry.verdict === 'note').slice(-5).map((entry) => ({ who: entry.who, comment: entry.comment, at: entry.ts })),
   files: card.files ?? [],
   parents: card.parents ?? [],
 })
 
 export const board = {
   description:
-    'Read a 抽卡台 card table: the brief, the rounds that ask you for cards, the rounds you are the critic of, the rules added on this table, every card with its status, and the feedback on your own cards (answer a reject with a new version of that card). Call it first whenever you are woken about a card table.',
+    'Read a 抽卡台 card table: the brief, the rounds that ask you for cards, the rules added on this table, every card with its status and notes, and the feedback on your own cards (answer a reject with a new version of that card). Call it first whenever you are woken about a card table or asked to look at its cards.',
   inputSchema: { type: 'object', required: ['board'], properties: { board: BOARD } },
   annotations: { readOnlyHint: true },
   async run({ board: id }, { agent }) {
@@ -61,7 +62,7 @@ export const board = {
         brief: String(data.brief ?? ''),
         you: agent,
         rules: {
-          codex: 'skills/promo-video/references/director-rulings.md (rules 1–23) — read it before you hand in or judge a card',
+          codex: 'skills/promo-video/references/director-rulings.md (rules 1–23) — read it before you hand in or annotate a card',
           added: Object.values(data.rules).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? '')).map((rule, i) => `${24 + i}. ${rule.text}`),
         },
         askedOfYou: rounds
@@ -76,14 +77,6 @@ export const board = {
             handedIn: mine.filter(([, card]) => card.round === rid).length,
             refs: (r.refs ?? []).filter((cid) => data.cards[cid]).map((cid) => ({ id: cid, title: data.cards[cid].title, text: short(data.cards[cid].text, 1200), files: data.cards[cid].files ?? [] })),
             otherAgents: (r.agents ?? []).filter((a) => a !== agent),
-          })),
-        criticOf: rounds
-          .filter(([, r]) => r.critic === agent)
-          .map(([rid, r]) => ({
-            round: rid,
-            n: r.n,
-            complete: roundComplete(data, rid),
-            waiting: cards.filter(([cid, card]) => card.round === rid && (!data.notes[cid] || noteStale(data, cid))).map(([cid]) => cid),
           })),
         feedbackOnYours: mine.flatMap(([cid, card]) =>
           feedbackOf(data, cid)
@@ -149,15 +142,8 @@ export const submit = {
         const parents = [...new Set([...(args.parents ?? []), ...(args.card ? [args.card] : [])])].filter((cid) => f.data.cards[cid])
         f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, at, updatedAt: at }
       }
-      // The round is in: the critic is woken once, with the whole round (not once a card).
-      let woke = null
-      if (round.critic && round.critic !== agent && !round.criticWoken && roundComplete(f.data, args.round)) {
-        f.data.rounds[args.round].criticWoken = at
-        woke = round.critic
-      }
       await flushed(f)
-      if (woke) await gugu.send(woke, `抽卡台第 ${round.n} 轮的卡交齐了，等你评：用抽卡台的 board 工具看卡，每张用 note 打分。`, { about: f.entry })
-      return { card: id, version: f.data.cards[id].version, revised: Boolean(own), criticWoken: Boolean(woke) }
+      return { card: id, version: f.data.cards[id].version, revised: Boolean(own) }
     } finally {
       f.close()
     }
@@ -166,37 +152,28 @@ export const submit = {
 
 export const note = {
   description:
-    'As the critic of a 抽卡台 round: score one card 0–10 and say why in one line, citing the rule it keeps or breaks (§n of director-rulings.md, or a rule added on the table). Cards at 4 or below are folded away from the person; the person still decides. One call per card.',
+    'Annotate one card of a 抽卡台 card table, as a person in the chat would with 批注: one or two lines on what works and what to change, citing a rule when one applies (§n of director-rulings.md, or a rule added on the table). Its author is told. Use it when someone asks you to look at the cards; the person picks and rejects, you only say what you see. One call per card.',
   inputSchema: {
     type: 'object',
-    required: ['board', 'card', 'score', 'comment'],
+    required: ['board', 'card', 'comment'],
     properties: {
       board: BOARD,
       card: { type: 'string' },
-      score: { type: 'number', minimum: 0, maximum: 10 },
-      comment: { type: 'string', description: 'One line: what it gets right or wrong, with the rule (§n).' },
+      comment: { type: 'string', description: 'What works, what to change; the rule (§n) when one applies. No score.' },
     },
   },
-  async run({ board: id, card, score, comment }, { agent }) {
+  async run({ board: id, card, comment }, { agent }) {
     if (!agent) throw new Error('note is for agents (gugu stamps who calls)')
+    if (!String(comment ?? '').trim()) throw new Error('a note needs a comment')
     const f = await openBoard(id)
     try {
       const target = f.data.cards[card]
       if (!target) throw new Error(`no card ${card} on this table`)
-      if (target.by === agent) throw new Error('that is your own card: the critic of a round is someone who did not hand in to it')
-      f.data.notes[card] = { score: Math.max(0, Math.min(10, Number(score) || 0)), comment: String(comment), by: agent, at: now() }
-      // The round fully read: the person who opened it is told once, by the critic — this program speaks as the
-      // person whose computer it runs on, and that is usually the one who opened the round (no whisper to oneself).
-      const roundId = target.round
-      const round = f.data.rounds[roundId]
-      let tell = null
-      const unread = Object.entries(f.data.cards).filter(([cid, c]) => c.round === roundId && !f.data.notes[cid]).length
-      if (round && !round.readTold && unread === 0 && roundComplete(f.data, roundId) && round.by) {
-        f.data.rounds[roundId].readTold = now()
-        tell = { to: round.by, text: `抽卡台第 ${round.n} 轮评完了，可以挑了。`, how: 'whisper this to the person with message_send (whisper: true, to_user_ids: [to]) in the chat of the card table — nothing else in the chat' }
-      }
+      f.data.feedback[newId('f')] = { card, verdict: 'note', comment: String(comment).trim(), who: agent, ts: now() }
       await flushed(f)
-      return { card, score: f.data.notes[card].score, ...(tell ? { tellThePerson: tell } : {}) }
+      // The author hears of it as of a person's 批注; one's own card tells nobody.
+      if (target.by && target.by !== agent) await gugu.send(target.by, `「${target.title}」有一条新批注：用抽卡台的 board 工具看。`, { about: f.entry })
+      return { card, noted: true }
     } finally {
       f.close()
     }
