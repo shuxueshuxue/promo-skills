@@ -2,7 +2,7 @@
 // The card table is the file the agent was woken about; what to do with it is the choukatai skill (skills/choukatai).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { feedbackOf, roundsInOrder, slotOf, statusOf } from './model.js'
+import { feedbackOf, normalizeTable, roundsInOrder, slotOf, statusOf } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .chouka.json file the whisper you got is about.' }
@@ -12,7 +12,9 @@ const short = (text, n = 280) => (text && text.length > n ? `${text.slice(0, n)}
 
 async function openBoard(board) {
   const f = await gugu.files.open({ id: board })
-  for (const key of ['rounds', 'cards', 'feedback', 'rules']) if (!f.data[key] || typeof f.data[key] !== 'object') f.data[key] = {}
+  // The same once-only fill the page does (model.js normalizeTable): a table from before 0.3.0 gets its lines and the
+  // cards their (empty) earlier versions, whoever opens it first.
+  if (normalizeTable(structuredClone(f.toJSON()))) f.transact(() => normalizeTable(f.data))
   return f
 }
 
@@ -39,6 +41,8 @@ const cardLine = (data, id, card) => ({
   by: card.by,
   model: card.model ?? null,
   version: card.version ?? 1,
+  // The earlier versions kept, by number (a new version keeps the one it replaces).
+  earlierVersions: Object.keys(card.versions ?? {}).map(Number).sort((a, b) => a - b),
   status: statusOf(data, id).label,
   // What people (and the agents they asked) already said about it, the latest few: read before you annotate it too.
   notes: feedbackOf(data, id).filter((entry) => entry.verdict === 'note').slice(-5).map((entry) => ({ who: entry.who, comment: entry.comment, at: entry.ts })),
@@ -72,6 +76,7 @@ export const board = {
             n: r.n,
             kind: r.kind,
             slot: r.slot,
+            track: r.track,
             ask: r.ask || '(nothing more than the brief and the picked cards)',
             each: r.each,
             handedIn: mine.filter(([, card]) => card.round === rid).length,
@@ -136,11 +141,14 @@ export const submit = {
       if (own) {
         id = own
         const card = f.data.cards[id]
-        f.data.cards[id] = { ...fields, round: card.round, slot: card.slot, kind: card.kind, by: agent, parents: card.parents ?? [], version: (card.version ?? 1) + 1, at: card.at, updatedAt: at }
+        // The version this one replaces is kept as it was: the history compares them.
+        const replaced = card.version ?? 1
+        const versions = { ...(card.versions ?? {}), [replaced]: { title: card.title, text: card.text ?? '', files: card.files ?? [], model: card.model ?? null, cost: card.cost ?? {}, at: card.updatedAt ?? card.at } }
+        f.data.cards[id] = { ...fields, round: card.round, slot: card.slot, kind: card.kind, by: agent, parents: card.parents ?? [], version: replaced + 1, versions, at: card.at, updatedAt: at }
       } else {
         id = newId('c')
         const parents = [...new Set([...(args.parents ?? []), ...(args.card ? [args.card] : [])])].filter((cid) => f.data.cards[cid])
-        f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, at, updatedAt: at }
+        f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, versions: {}, at, updatedAt: at }
       }
       await flushed(f)
       return { card: id, version: f.data.cards[id].version, revised: Boolean(own) }

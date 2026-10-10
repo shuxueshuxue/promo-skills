@@ -1,4 +1,5 @@
-// What the card table's settings box and the image tool share. settings.json lives in this App's own data folder on the
+// What the card table's settings view and the image tool share (openrouterKey, imageModel; and writers: the agents
+// ticked by default when a round is opened). settings.json lives in this App's own data folder on the
 // person's computer (readData / writeData; GUGU_EXTENSION_DATA_DIR for the program) — never in the chat's table file,
 // which everyone in the chat can read.
 export const SETTINGS_FILE = 'settings.json'

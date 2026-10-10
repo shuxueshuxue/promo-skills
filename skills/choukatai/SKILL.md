@@ -31,7 +31,8 @@ your context and on to your model's provider.
 A whisper about a `.chouka.json` file means something on the table concerns you. Always start with the `board` tool
 on that file. It tells you:
 
-- `askedOfYou` — rounds that want cards from you: the kind (叙事 / 文案 / 分镜 / 变式 / 片头 / 整片 / 宣传稿), the slot,
+- `askedOfYou` — rounds that want cards from you: the line it is a step of (`track`: 片子, 文字…), the kind (叙事 / 文案 /
+  分镜 / 变式 / 片头 / 整片 / 宣传稿), the slot,
   the person's ask, how many cards (`each`), how many you have handed in, and the picked cards to build on (`refs`);
 - `feedbackOnYours` — notes and rejects on your cards; `answered: false` means a new version is owed;
 - `cards` — every card with its status and the latest notes on it;
@@ -57,8 +58,9 @@ on that file. It tells you:
 4. Report `cost`: `usd` is what the media API itself reported (the `image` tool's `usd`, a video API's `usage.cost`),
    `seconds` the wall time the card took, `tokens` your own approximate count. Leave out what you cannot know; never
    guess dollars.
-5. One `submit` per card. To answer a reject, `submit` again with `card` set to your card: that makes a new version,
-   which is what turns the person's reject into "待复审". Someone else's card is never edited — cite it in `parents`.
+5. One `submit` per card. To answer a reject, `submit` again with `card` set to your card: that makes a new version
+   (the one it replaces is kept, so the person can compare them), which is what turns the person's reject into
+   "待复审". Someone else's card is never edited — cite it in `parents`.
 
 **Never post cards into the chat timeline**, and do not announce them: the table is where they live, and the person
 was already told. A plain question to the person is fine.

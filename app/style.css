@@ -1,19 +1,84 @@
 /* The card table. gugu's look is already on the page (guide apps-ui): only layout here, colours and sizes from --em-*. */
 body { margin: 0; }
-#app { padding: var(--em-spacing-lg); max-width: 1200px; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--em-spacing-md); }
+[hidden] { display: none !important; }
+#status:empty { display: none; }
+#status { padding: var(--em-spacing-xs) var(--em-spacing-lg); }
+
+/* header: name, brief, 开一轮, settings */
+#bar { display: flex; align-items: center; gap: var(--em-spacing-sm); padding: var(--em-spacing-sm) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
+#bar #name { white-space: nowrap; }
+#brief { flex: 1; min-width: 0; resize: none; border-color: transparent; background: none; color: var(--em-foreground-muted); field-sizing: content; max-height: 6lh; }
+#brief:focus { border-color: var(--em-border-1); color: var(--em-foreground); }
+
+/* the project: spine | stage */
+#project { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
+#spine { border-right: 1px solid var(--em-border); padding: var(--em-spacing-md) var(--em-spacing-sm); display: flex; flex-direction: column; gap: 2px; }
+.node { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: var(--em-spacing-sm); align-items: center; width: 100%; padding: var(--em-spacing-xs) var(--em-spacing-sm); border: 0; background: none; text-align: left; border-radius: var(--em-radius-control); }
+.node:hover { background: var(--em-hover); }
+.node[aria-current="step"] { background: var(--em-selected); }
+.node.branch { padding-left: calc(var(--em-spacing-sm) + 28px); }
+.dot { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; flex: none; }
+.dot .dot-media { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dot:has(.dot-media) { box-shadow: inset 0 0 0 2px var(--em-accent-9); }
+.dot.chosen { background: var(--em-accent-9); }
+.dot.chosen::after { content: ''; width: 6px; height: 11px; border: solid var(--em-accent-contrast); border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
+.dot.empty { border: 2px dashed var(--em-border-1); }
+.node-text { display: grid; min-width: 0; }
+.node-slot, .node-pick { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tally { display: flex; gap: 3px; margin-top: 3px; }
+.tally i { width: 6px; height: 6px; border-radius: 50%; background: var(--em-border-1); }
+.tally i.on { background: var(--em-accent-9); }
+.tally i.x { background: var(--em-foreground-destructive); }
+
+#stage { padding: var(--em-spacing-lg) var(--em-spacing-xl); min-width: 0; }
+.stage-head { display: flex; align-items: center; gap: var(--em-spacing-md); flex-wrap: wrap; }
+.stage-head h2 { margin: 0; }
+.writers { display: flex; gap: 2px; }
+.ask { margin: var(--em-spacing-xs) 0 var(--em-spacing-lg); max-width: 70ch; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.ask.open { display: block; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--em-spacing-md); align-items: start; }
 .chouka-card { display: flex; flex-direction: column; gap: var(--em-spacing-sm); }
-.chouka-card.picked { box-shadow: inset 0 0 0 2px var(--em-foreground-success); }
-.chouka-card.rejected { opacity: 0.6; }
+.chouka-card.picked { box-shadow: inset 0 0 0 2px var(--em-accent-9); }
+.pics { position: relative; display: grid; gap: var(--em-spacing-xs); }
+.pics .more { position: absolute; right: 6px; bottom: 6px; padding: 0 6px; border-radius: 4px; background: var(--em-background-1); }
 .chouka-card .media { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--em-radius-control); background: var(--em-background-3); display: block; }
-.chouka-card .text { max-height: 10em; overflow: hidden; }
-.chouka-card.open .text { max-height: none; }
-.slot-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--em-spacing-sm); }
-.tag { border-radius: 999px; padding: 0 var(--em-spacing-sm); background: var(--em-background-3); white-space: nowrap; }
-.tag.ok { background: var(--em-background-success); color: var(--em-foreground-success); }
-.tag.warn { background: var(--em-background-warning); color: var(--em-foreground-warning); }
-.tag.bad { background: var(--em-background-destructive); color: var(--em-foreground-destructive); }
-.agents { display: flex; flex-wrap: wrap; gap: var(--em-spacing-sm); }
+.chouka-card .text { max-height: 7lh; overflow: hidden; color: var(--em-foreground-muted); }
+.chouka-card .text.open { max-height: none; color: var(--em-foreground); }
+
+/* a card's history as marks: ● a version · ○ a note · ✕ a reject · ✓ the pick — shapes, not words */
+.marks-btn { border: 0; background: none; padding: var(--em-spacing-xs) 0 0; border-top: 1px solid var(--em-border); border-radius: 0; justify-content: flex-start; }
+.marks { display: flex; align-items: center; gap: 8px; min-height: 14px; }
+.mark { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; position: relative; }
+.mark.v { background: var(--em-foreground); }
+.mark.n { box-shadow: inset 0 0 0 1.5px var(--em-foreground-muted); }
+.mark.r { border-radius: 0; }
+.mark.r::before, .mark.r::after { content: ''; position: absolute; left: 3.5px; top: -1.5px; width: 2px; height: 12px; background: var(--em-foreground-destructive); transform: rotate(45deg); }
+.mark.r::after { transform: rotate(-45deg); }
+.mark.p { width: 12px; height: 12px; background: var(--em-accent-9); }
+.mark.p::after { content: ''; position: absolute; left: 3.5px; top: 2px; width: 3px; height: 6px; border: solid var(--em-accent-contrast); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+.history { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--em-spacing-sm); }
+.history li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: var(--em-spacing-sm); }
+.history li .mark { margin-top: 5px; }
+.history p { margin: 2px 0 0; }
+.history .kept { white-space: pre-wrap; color: var(--em-foreground-muted); max-height: 10lh; overflow: auto; }
+
 /* 「要作者交新版」: a reject asks the author for a new version — it shows, before and after it is ticked */
 #say-reject-row { border: 1px solid var(--em-border); border-radius: var(--em-radius-control); padding: var(--em-spacing-xs) var(--em-spacing-sm); }
 #say-reject-row.on { background: var(--em-background-destructive); color: var(--em-foreground-destructive); border-color: transparent; }
+.agents { display: flex; flex-wrap: wrap; gap: var(--em-spacing-sm); }
+
+/* settings: their own place */
+#settings { padding: 0 var(--em-spacing-lg) var(--em-spacing-xl); max-width: 640px; display: grid; gap: var(--em-spacing-xl); }
+.settings-head { display: flex; align-items: center; gap: var(--em-spacing-sm); padding: var(--em-spacing-sm) 0; border-bottom: 1px solid var(--em-border); }
+#settings h5 { margin: 0; }
+
+/* a narrow panel (a chat's side panel is 440 px): the spine is a strip across the top */
+@media (max-width: 600px) {
+  #project { grid-template-columns: 1fr; min-height: 0; }
+  #spine { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--em-border); padding: var(--em-spacing-sm); }
+  .node, .node.branch { grid-template-columns: 36px; justify-items: center; width: 84px; flex: none; padding: var(--em-spacing-xs); }
+  .node-text { width: 76px; text-align: center; }
+  .node-pick, .tally { display: none; }
+  #stage { padding: var(--em-spacing-md); }
+  #brief { max-height: 2lh; }
+}

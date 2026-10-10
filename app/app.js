@@ -3,8 +3,13 @@
 // a new version. Picked cards are what the next round mixes. Review rules are promo-skills'
 // (skills/promo-video/references/review-loop.md): reject or annotate, never "approve"; a reject is answered by a newer
 // version of the card.
+//
+// The page is the project: its rounds as stages down a spine (one line the trunk, the others indented as branches), each
+// stage a picked card's picture or an empty ring; the open stage's candidates beside it, each with its history as marks.
+// Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
+// their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, drawHint, feedbackOf, pickOf, roundComplete, roundSummary, roundsInOrder, slotOf, statusOf } from './model.js'
+import { KINDS, TRACKS, drawHint, eventsOf, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, tracksInOrder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -17,11 +22,14 @@ const newId = (prefix) => `${prefix}${crypto.randomUUID().slice(0, 8)}`
 const nameOf = (id) => members.find((m) => m.id === id)?.name ?? f.data.names?.[id] ?? '已退群的成员'
 const agents = () => members.filter((m) => m.kind === 'agent')
 
-// A table made by an agent may lack a map: made once, here, so every write below can rely on it.
-f.transact(() => {
-  for (const key of ['rounds', 'cards', 'feedback', 'rules', 'names']) if (!f.data[key] || typeof f.data[key] !== 'object') f.data[key] = {}
-  if (f.data.brief === undefined) f.data.brief = window.gugu.text('')
-})
+// The table made whole once (model.js normalizeTable): only what is missing is added, so pages and agents opening it at
+// the same time agree. The brief is the page's own field.
+if (normalizeTable(structuredClone(f.toJSON())) || f.data.brief === undefined) {
+  f.transact(() => {
+    normalizeTable(f.data)
+    if (f.data.brief === undefined) f.data.brief = window.gugu.text('')
+  })
+}
 
 /** Wake the one it concerns; what happened is in the file. A refusal is said, never swallowed. */
 async function tell(to, text) {
@@ -58,52 +66,24 @@ async function loadMedia(itemId) {
   }
   draw()
 }
-function mediaView(itemId) {
+function mediaView(itemId, cls = 'media') {
   const m = media.get(itemId)
   if (!m) {
     queueMicrotask(() => media.has(itemId) || loadMedia(itemId))
-    return html`<div class="media" data-key="${itemId}"></div>`
+    return html`<div class="${cls}" data-key="${itemId}"></div>`
   }
-  if (m === 'loading') return html`<div class="media" data-key="${itemId}"></div>`
+  if (m === 'loading') return html`<div class="${cls}" data-key="${itemId}"></div>`
   if (m.error) return html`<small class="muted" data-key="${itemId}">${m.error}</small>`
-  if (m.kind === 'video') return html`<video class="media" data-key="${itemId}" src="${m.url}" controls muted playsinline preload="metadata"></video>`
+  // A clip on the spine is a still: its frame at 5 s (a media fragment), no controls.
+  if (m.kind === 'video' && cls !== 'media') return html`<video class="${cls}" data-key="${itemId}" src="${m.url}#t=5" muted playsinline preload="metadata"></video>`
+  if (m.kind === 'video') return html`<video class="${cls}" data-key="${itemId}" src="${m.url}" controls muted playsinline preload="metadata"></video>`
   if (m.kind === 'audio') return html`<audio data-key="${itemId}" src="${m.url}" controls preload="metadata"></audio>`
   if (m.kind === 'text') return html`<pre data-key="${itemId}">${m.text}</pre>`
-  return html`<img class="media" data-key="${itemId}" src="${m.url}" alt="${m.name}" />`
+  return html`<img class="${cls}" data-key="${itemId}" src="${m.url}" alt="${m.name}" />`
 }
 
-// ─── the controls: drawn once (drafts and the brief's editor live here, out of render's way) ───────────────────────
-$('#controls').innerHTML = `
-  <div class="card stack">
-    <label>需求 <textarea id="brief" rows="3" placeholder="一句话：要做什么、给谁看、多长"></textarea></label>
-    <details id="rules-box"><summary>导演法典</summary><div id="rules"></div></details>
-  </div>
-  <details class="card" id="round-box">
-    <summary><strong>开一轮</strong></summary>
-    <div class="stack">
-      <div class="row">
-        <label>出什么 <select id="r-kind"></select></label>
-        <label>位置 <input id="r-slot" placeholder="比如：叙事主线、第 3 拍" /></label>
-        <label>每人几张 <input id="r-each" type="number" min="1" max="5" value="2" /></label>
-      </div>
-      <label>这一轮的要求 <textarea id="r-ask" rows="2" placeholder="可以空着：照需求和已选的卡来"></textarea></label>
-      <fieldset><legend>谁来出卡</legend><div id="r-agents" class="agents"></div></fieldset>
-      <small class="muted" id="r-refs"></small>
-      <div class="row"><button class="primary" id="r-start">开始</button></div>
-    </div>
-  </details>
-  <details class="card" id="image-box">
-    <summary><strong>出图设置</strong> <small class="muted" id="img-state"></small></summary>
-    <div class="stack">
-      <small class="muted">写手出分镜、海报时调抽卡台的出图工具，用你的 OpenRouter 密钥，费用记在你的 OpenRouter 账上。密钥只存在这台电脑上，不写进卡桌文件（对话里的人都能看到那个文件）。</small>
-      <label>OpenRouter API 密钥 <input id="img-key" type="password" autocomplete="off" /></label>
-      <label>出图模型 <input id="img-model" placeholder="${IMAGE_MODEL}" /></label>
-      <div class="row"><button class="primary" id="img-save">保存并检查</button><button id="img-clear">清掉密钥</button><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">获取密钥</a></div>
-      <small class="muted" id="img-where"></small>
-    </div>
-  </details>`
-
-$('#r-kind').innerHTML = KINDS.map((k) => `<option>${k}</option>`).join('')
+// ─── the header: the file's name, the brief (typed in together), 开一轮, settings ──────────────────────────────────
+$('#name').textContent = String(f.entry.name ?? '抽卡台').replace(/\.chouka\.json$/, '')
 try {
   window.gugu.bind.text($('#brief'), f.textAt(['brief']))
 } catch {
@@ -111,62 +91,44 @@ try {
   $('#brief').value = String(f.data.brief ?? '')
   $('#brief').onchange = () => { f.data.brief = window.gugu.text($('#brief').value) }
 }
-
-const chosenAgents = new Set()
-function drawRoundForm() {
-  const list = agents()
-  render($('#r-agents'), list.length
-    ? html`${list.map((a) => html`<label data-key="${a.id}"><input type="checkbox" data-agent="${a.id}" ${chosenAgents.has(a.id) ? html`checked` : ''} /> <gugu-avatar user="${a.id}" size="xs"></gugu-avatar> ${a.name}</label>`)}`
-    : html`<small class="muted">这个对话里还没有 Agent：先把几个不同模型的 Agent 拉进来。</small>`)
-  const picked = pickedCards()
-  $('#r-refs').textContent = picked.length ? `参考（已选的卡）：${picked.map(([, c]) => c.title).join('、')}` : ''
+const showSettings = (on) => {
+  $('#project').hidden = on
+  $('#settings').hidden = !on
+  $('#bar').hidden = on
+  if (on) loadSettings().catch((error) => say(`设置读不出来：${error.message}`, 'error'))
 }
-$('#r-agents').addEventListener('change', (event) => {
-  const id = event.target.dataset?.agent
-  if (!id) return
-  if (event.target.checked) chosenAgents.add(id)
-  else chosenAgents.delete(id)
-})
-const pickedCards = () => {
-  const slots = new Set(Object.values(f.data.cards).map((card) => slotOf(f.data, card)))
-  return [...slots].map((slot) => pickOf(f.data, slot)).filter(Boolean).map((id) => [id, f.data.cards[id]])
-}
+$('#open-settings').onclick = () => showSettings(true)
+$('#back').onclick = () => showSettings(false)
 
-$('#r-start').onclick = async () => {
-  const chosen = [...chosenAgents].filter((id) => agents().some((a) => a.id === id))
-  if (!chosen.length) return say('先勾上至少一个 Agent', 'error')
-  const kind = $('#r-kind').value
-  const slot = $('#r-slot').value.trim() || kind
-  const each = Math.max(1, Math.min(5, Number($('#r-each').value) || 1))
-  const n = Object.keys(f.data.rounds).length + 1
-  const id = newId('r')
-  f.data.rounds[id] = { n, kind, slot, ask: $('#r-ask').value.trim(), each, agents: chosen, refs: pickedCards().map(([cardId]) => cardId), by: me, at: now() }
-  $('#r-ask').value = ''
-  $('#round-box').open = false
-  say(`第 ${n} 轮开始了：叫了 ${chosen.map(nameOf).join('、')}`)
-  for (const agent of chosen) await tell(agent, `抽卡台第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。先用抽卡台的 board 工具读卡桌（要求和参考都在那里），每张卡用 submit 交。${drawHint(kind)}`)
-}
-
-// ─── 出图设置: settings.json in this App's own data folder (the image tool reads it); never in the shared table ───────
+// ─── settings.json in this App's own data folder: the image key and model (the image tool reads them) and the writers
+// ticked by default — never in the shared table ──────────────────────────────────────────────────────────────────────
 // A device that runs no programs (the phone) has no callProgram: its writers' images come from a computer.
 const runsPrograms = typeof window.gugu.callProgram === 'function'
-async function loadImageSettings() {
-  for (const id of ['#img-key', '#img-model', '#img-save', '#img-clear']) $(id).disabled = !runsPrograms
-  if (!runsPrograms) {
-    $('#img-state').textContent = '在电脑上设置'
-    return false
-  }
-  const imageSettings = parseSettings(await window.gugu.readData(SETTINGS_FILE))
-  const hasKey = Boolean(String(imageSettings.openrouterKey ?? '').trim())
-  $('#img-state').textContent = hasKey ? '已配置' : '还没有密钥：写手只能交文字分镜'
-  $('#img-key').placeholder = hasKey ? '已配置（要换就粘贴新的）' : '粘贴 OpenRouter 的 API 密钥'
-  $('#img-model').value = imageSettings.imageModel ?? ''
-  return hasKey
+let settings = {}
+async function readSettings() {
+  settings = parseSettings(await window.gugu.readData(SETTINGS_FILE))
+  return settings
 }
 /** Read the file again and change only what the person changed: an agent may have edited it meanwhile. */
-async function saveImageSettings(change) {
+async function saveSettings(change) {
   const next = change(parseSettings(await window.gugu.readData(SETTINGS_FILE)))
   await window.gugu.writeData(SETTINGS_FILE, `${JSON.stringify(next, null, 2)}\n`)
+  settings = next
+}
+async function loadSettings() {
+  await readSettings()
+  drawWriters()
+  for (const id of ['#img-key', '#img-model', '#img-save', '#img-clear']) $(id).disabled = !runsPrograms
+  $('#img-model').placeholder = IMAGE_MODEL
+  if (!runsPrograms) {
+    $('#img-state').textContent = '在电脑上设置'
+    return
+  }
+  const hasKey = Boolean(String(settings.openrouterKey ?? '').trim())
+  $('#img-state').textContent = hasKey ? '已配置' : '还没有密钥'
+  $('#img-key').placeholder = hasKey ? '已配置（要换就粘贴新的）' : '粘贴 OpenRouter 的 API 密钥'
+  $('#img-model').value = settings.imageModel ?? ''
+  if (hasKey) await checkImageKey()
 }
 async function checkImageKey() {
   $('#img-state').textContent = '正在试一次…'
@@ -181,7 +143,7 @@ $('#img-save').onclick = async () => {
   const key = $('#img-key').value.trim()
   const model = $('#img-model').value.trim()
   try {
-    await saveImageSettings((s) => {
+    await saveSettings((s) => {
       const next = { ...s }
       if (key) next.openrouterKey = key
       if (model) next.imageModel = model
@@ -189,27 +151,98 @@ $('#img-save').onclick = async () => {
       return next
     })
     $('#img-key').value = ''
-    if (await loadImageSettings()) await checkImageKey()
+    await loadSettings()
   } catch (error) {
     say(`没存上：${error.message}`, 'error')
   }
 }
 $('#img-clear').onclick = async () => {
   try {
-    await saveImageSettings((s) => {
+    await saveSettings((s) => {
       const next = { ...s }
       delete next.openrouterKey
       return next
     })
-    await loadImageSettings()
+    await loadSettings()
   } catch (error) {
     say(`没清掉：${error.message}`, 'error')
   }
 }
-$('#image-box').addEventListener('toggle', () => {
-  if ($('#image-box').open && runsPrograms) loadImageSettings().then((hasKey) => hasKey && checkImageKey()).catch((error) => say(error.message, 'error'))
+function drawWriters() {
+  const ticked = new Set(settings.writers ?? [])
+  const list = agents()
+  render($('#writers'), list.length
+    ? html`${list.map((a) => html`<label data-key="${a.id}"><input type="checkbox" data-writer="${a.id}" ${ticked.has(a.id) ? html`checked` : ''} /> <gugu-avatar user="${a.id}" size="xs"></gugu-avatar> ${a.name}</label>`)}`
+    : html`<small class="muted">这个对话里还没有 Agent。</small>`)
+}
+$('#writers').addEventListener('change', async (event) => {
+  const id = event.target.dataset?.writer
+  if (!id) return
+  try {
+    await saveSettings((s) => {
+      const writers = new Set(s.writers ?? [])
+      if (event.target.checked) writers.add(id)
+      else writers.delete(id)
+      return { ...s, writers: [...writers] }
+    })
+  } catch (error) {
+    say(`没存上：${error.message}`, 'error')
+  }
 })
-loadImageSettings().catch((error) => say(`出图设置读不出来：${error.message}`, 'error'))
+readSettings().catch((error) => say(`设置读不出来：${error.message}`, 'error'))
+
+// ─── 开一轮: a dialog; the line is chosen here (a new one can be started) ──────────────────────────────────────────
+$('#r-kind').innerHTML = KINDS.map((k) => `<option>${k}</option>`).join('')
+const NEW_TRACK = '\u0000new'
+const chosenAgents = new Set()
+const pickedCards = () => {
+  const slots = new Set(Object.values(f.data.cards).map((card) => slotOf(f.data, card)))
+  return [...slots].map((slot) => pickOf(f.data, slot)).filter(Boolean).map((id) => [id, f.data.cards[id]])
+}
+function drawRoundForm() {
+  const list = agents()
+  render($('#r-agents'), list.length
+    ? html`${list.map((a) => html`<label data-key="${a.id}"><input type="checkbox" data-agent="${a.id}" ${chosenAgents.has(a.id) ? html`checked` : ''} /> <gugu-avatar user="${a.id}" size="xs"></gugu-avatar> ${a.name}</label>`)}`
+    : html`<small class="muted">这个对话里还没有 Agent：先把几个不同模型的 Agent 拉进来。</small>`)
+  const picked = pickedCards()
+  $('#r-refs').textContent = picked.length ? `参考（已选的卡）：${picked.map(([, c]) => c.title).join('、')}` : ''
+}
+$('#open-round').onclick = () => {
+  const lines = [...new Set([...tracksInOrder(f.data).map((t) => t.name), ...TRACKS])]
+  const current = f.data.rounds[openRound]?.track ?? lines[0]
+  $('#r-track').innerHTML = [...lines.map((t) => `<option ${t === current ? 'selected' : ''}>${t.replace(/[<&]/g, '')}</option>`), `<option value="${NEW_TRACK}">新的一条…</option>`].join('')
+  $('#r-new-track-label').hidden = true
+  chosenAgents.clear()
+  for (const id of settings.writers ?? []) chosenAgents.add(id)
+  drawRoundForm()
+  $('#round-box').showModal()
+}
+$('#r-track').onchange = () => { $('#r-new-track-label').hidden = $('#r-track').value !== NEW_TRACK }
+$('#r-cancel').onclick = () => $('#round-box').close()
+$('#r-agents').addEventListener('change', (event) => {
+  const id = event.target.dataset?.agent
+  if (!id) return
+  if (event.target.checked) chosenAgents.add(id)
+  else chosenAgents.delete(id)
+})
+$('#r-start').onclick = async () => {
+  const chosen = [...chosenAgents].filter((id) => agents().some((a) => a.id === id))
+  if (!chosen.length) return say('先勾上至少一个 Agent', 'error')
+  const track = $('#r-track').value === NEW_TRACK ? $('#r-new-track').value.trim() : $('#r-track').value
+  if (!track) return say('给新的线起个名字', 'error')
+  const kind = $('#r-kind').value
+  const slot = $('#r-slot').value.trim() || kind
+  const each = Math.max(1, Math.min(5, Number($('#r-each').value) || 1))
+  const n = Object.keys(f.data.rounds).length + 1
+  const id = newId('r')
+  openRound = id // before the write: writing the round redraws, and the new stage is the one to show
+  f.data.rounds[id] = { n, track, kind, slot, ask: $('#r-ask').value.trim(), each, agents: chosen, refs: pickedCards().map(([cardId]) => cardId), by: me, at: now() }
+  $('#r-ask').value = ''
+  $('#r-slot').value = ''
+  $('#round-box').close()
+  say(`第 ${n} 轮开始了：叫了 ${chosen.map(nameOf).join('、')}`)
+  for (const agent of chosen) await tell(agent, `抽卡台第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。先用抽卡台的 board 工具读卡桌（要求和参考都在那里），每张卡用 submit 交。${drawHint(kind)}`)
+}
 
 // ─── 批注: one dialog, drawn once. Ticking 「要作者交新版」 makes it a reject (the author is asked for a new version) ───────
 let pending = null // the card id
@@ -248,78 +281,111 @@ $('#say-send').onclick = async () => {
   if (verdict === 'reject') await tell(card?.by, `「${card?.title}」被打回了：用抽卡台的 board 工具看批注，再用 submit（带上 card）交新一版。${drawHint(card?.kind)}`)
 }
 
-// ─── the table ───────────────────────────────────────────────────────────────────────────────────────────────────────
-const opened = new Set() // cards shown in full
-let roundsOpen = false // 各轮用量, folded so the cards come first
-$('#shared').addEventListener('click', (event) => {
-  const button = event.target.closest('[data-act]')
-  if (!button) return
-  const { act, card } = button.dataset
-  if (act === 'pick') f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }
+// ─── the project: spine and stage ───────────────────────────────────────────────────────────────────────────────────
+let openRound = null // the stage shown; the latest one until a person picks another
+let shownRound = null // the stage last scrolled into view on the spine
+let askOpen = false // the open stage's request shown in full (three lines until clicked)
+const opened = new Set() // cards whose text and pictures are shown in full
+const histories = new Set() // cards whose history is unfolded
+const MARK = { version: 'v', note: 'n', reject: 'r', pick: 'p' }
+const marks = (events) => html`<span class="marks">${events.map((e) => html`<i class="mark ${MARK[e.kind] ?? 'n'}"></i>`)}</span>`
+const money = (usd) => (usd ? `$${usd.toFixed(usd < 1 ? 3 : 2)}` : '')
+const seconds = (s) => (s >= 90 ? `${Math.round(s / 60)} 分钟` : s ? `${Math.round(s)} 秒` : '')
+
+document.addEventListener('click', (event) => {
+  const el = event.target.closest('[data-act]')
+  if (!el) return
+  const { act, card, round } = el.dataset
+  if (act === 'stage') { openRound = round; askOpen = false; draw() }
+  else if (act === 'pick') f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }
   else if (act === 'note') ask(card)
-  else if (act === 'open') (opened.has(card) ? opened.delete(card) : opened.add(card), draw())
+  else if (act === 'open') { opened.has(card) ? opened.delete(card) : opened.add(card); draw() }
+  else if (act === 'history') { histories.has(card) ? histories.delete(card) : histories.add(card); draw() }
+  else if (act === 'first-round') $('#open-round').click()
+  else if (act === 'ask') { askOpen = !askOpen; draw() }
 })
-$('#shared').addEventListener('toggle', (event) => {
-  if (event.target.id === 'rounds-box') roundsOpen = event.target.open
-}, true)
 
-const money = (usd) => (usd ? `$${usd.toFixed(usd < 1 ? 3 : 2)}` : '$0')
-const seconds = (s) => (s >= 90 ? `用时 ${Math.round(s / 60)} 分钟` : `用时 ${Math.round(s)} 秒`)
-const tokens = (t) => (t >= 1000 ? `约 ${(t / 1000).toFixed(1)}k tok` : t ? `约 ${t} tok` : '')
+function spineView(data) {
+  const tracks = tracksInOrder(data)
+  const trunk = tracks[0]?.name
+  return html`${roundsInOrder(data).map(([id, round]) => {
+    const pick = pickOfRound(data, id)
+    const card = pick ? data.cards[pick] : null
+    const dot = card
+      ? (card.files?.length ? html`<span class="dot">${mediaView(card.files[0], 'dot-media')}</span>` : html`<span class="dot chosen"></span>`)
+      : html`<span class="dot empty"></span>`
+    const cards = Object.entries(data.cards).filter(([, c]) => c.round === id)
+    return html`<button class="node ${round.track === trunk ? '' : 'branch'}" data-key="${id}" data-act="stage" data-round="${id}" aria-current="${id === openRound ? 'step' : 'false'}">
+      ${dot}
+      <span class="node-text"><span class="node-slot">${round.slot}</span><small class="muted node-pick">${card?.title ?? ''}</small>
+        <span class="tally">${cards.map(([cid]) => html`<i class="${cid === pick ? 'on' : eventsOf(data, cid).some((e) => e.kind === 'reject') ? 'x' : ''}"></i>`)}</span></span>
+    </button>`
+  })}`
+}
 
-function cardView(id, card) {
-  const status = statusOf(f.data, id)
-  const history = feedbackOf(f.data, id)
-  const tone = status.state === 'picked' ? 'ok' : status.state === 'work' ? 'bad' : status.state === 'review' ? 'warn' : ''
-  const cost = [card.cost?.usd ? money(card.cost.usd) : '', card.cost?.seconds ? seconds(card.cost.seconds) : '', tokens(card.cost?.tokens)].filter(Boolean).join(' · ')
-  return html`
-    <article class="card chouka-card ${status.state === 'picked' ? 'picked' : ''} ${status.state === 'work' ? 'rejected' : ''} ${opened.has(id) ? 'open' : ''}" data-key="${id}">
-      ${(card.files ?? []).map(mediaView)}
-      <strong>${card.title}${card.version > 1 ? html` <small class="muted">第 ${card.version} 版</small>` : ''}</strong>
-      ${card.text ? html`<div class="text" data-md="${id}"></div>` : ''}
-      ${card.text && card.text.length > 160 ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
-      ${history.length ? html`<small class="muted">${history.map((h) => html`<span>${h.verdict === 'reject' ? '打回' : h.verdict === 'pick' ? '选了' : '批注'}${h.comment ? `：${h.comment}` : ''}（${nameOf(h.who)}）</span><br />`)}</small>` : ''}
-      <div class="row">
-        <gugu-avatar user="${card.by}" size="xs"></gugu-avatar>
-        <small>${nameOf(card.by)}${card.model ? ` · ${card.model}` : ''}</small>
-        <span class="tag ${tone}">${status.label}</span>
-      </div>
-      ${cost ? html`<small class="muted">${cost}</small>` : ''}
-      <div class="row">
-        ${status.state === 'picked' ? '' : html`<button data-act="pick" data-card="${id}">选这张</button>`}
-        <button data-act="note" data-card="${id}">批注</button>
-      </div>
-    </article>`
+function historyView(data, cardId) {
+  const events = eventsOf(data, cardId)
+  return html`<ol class="history">${events.map((e, i) => {
+    const what = e.kind === 'version' ? `交第 ${e.version} 版` : e.kind === 'pick' ? '选了这张' : e.kind === 'reject' ? '打回' : '批注'
+    const who = e.kind === 'version' ? nameOf(data.cards[cardId].by) : nameOf(e.who)
+    return html`<li data-key="${cardId}:${i}"><i class="mark ${MARK[e.kind] ?? 'n'}"></i><div>
+      <span><strong>${who}</strong> ${what}</span> <gugu-time datetime="${e.at}"></gugu-time>
+      ${e.comment ? html`<p>${e.comment}</p>` : ''}
+      ${e.kind === 'version' && e.lost ? html`<p class="muted">这一版的正文没留下：0.3.0 以前，交新版会直接盖掉旧版。</p>` : ''}
+      ${e.kind === 'version' && !e.lost && e.version < (data.cards[cardId].version ?? 1) ? html`<details><summary>这一版写的</summary><p class="kept">${e.saved?.title ?? ''}${'\n'}${e.saved?.text ?? ''}</p></details>` : ''}
+    </div></li>`
+  })}</ol>`
+}
+
+function cardView(data, id, card, pick) {
+  const events = eventsOf(data, id)
+  const isPicked = id === pick
+  const cost = [money(card.cost?.usd), seconds(card.cost?.seconds)].filter(Boolean).join(' · ')
+  const files = card.files ?? []
+  return html`<article class="card chouka-card ${isPicked ? 'picked' : ''}" data-key="${id}">
+    ${files.length ? html`<div class="pics">${(opened.has(id) ? files : files.slice(0, 1)).map((itemId) => mediaView(itemId))}${!opened.has(id) && files.length > 1 ? html`<small class="more">+${files.length - 1}</small>` : ''}</div>` : ''}
+    <strong>${card.title}${(card.version ?? 1) > 1 ? html` <small class="muted">v${card.version}</small>` : ''}</strong>
+    <small class="muted"><gugu-avatar user="${card.by}" size="xs"></gugu-avatar> ${nameOf(card.by)}${card.model ? ` · ${card.model}` : ''}${cost ? ` · ${cost}` : ''}</small>
+    ${card.text ? html`<div class="text ${opened.has(id) ? 'open' : ''}" data-md="${id}"></div>` : ''}
+    ${(card.text && card.text.length > 160) || files.length > 1 ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
+    <button class="marks-btn" data-act="history" data-card="${id}" aria-expanded="${histories.has(id)}" aria-label="经过">${marks(events)}</button>
+    ${histories.has(id) ? historyView(data, id) : ''}
+    <div class="row">
+      ${isPicked ? '' : html`<button data-act="pick" data-card="${id}">选这张</button>`}
+      <button data-act="note" data-card="${id}">批注</button>
+    </div>
+  </article>`
+}
+
+function stageView(data) {
+  const round = data.rounds[openRound]
+  if (!round) return html`<gugu-empty icon="checklist"><strong>还没有卡</strong><small>写好需求，开第一轮</small><button class="primary" data-act="first-round">开一轮</button></gugu-empty>`
+  const pick = pickOfRound(data, openRound)
+  const cards = Object.entries(data.cards).filter(([, c]) => c.round === openRound)
+    .sort(([a, x], [b, y]) => (b === pick) - (a === pick) || (x.at ?? '').localeCompare(y.at ?? ''))
+  return html`<header class="stage-head" data-key="head:${openRound}">
+      <h2>${round.slot}</h2>
+      <span class="writers">${(round.agents ?? []).map((a) => html`<gugu-avatar user="${a}" size="xs"></gugu-avatar>`)}</span>
+    </header>
+    ${round.ask ? html`<p class="muted ask ${askOpen ? 'open' : ''}" data-act="ask">${round.ask}</p>` : ''}
+    <div class="cards">${cards.map(([id, card]) => cardView(data, id, card, pick))}</div>`
 }
 
 function draw() {
   const data = f.data
-  const cards = Object.entries(data.cards)
-  const rounds = roundsInOrder(data)
-  const slots = [...new Set(cards.map(([, card]) => slotOf(data, card)))]
+  if (!openRound || !data.rounds[openRound]) openRound = roundsInOrder(data).at(-1)?.[0] ?? null
+  render($('#spine'), spineView(data))
+  render($('#stage'), stageView(data))
   const rules = Object.values(data.rules).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
   render($('#rules'), html`<small class="muted">底子是 promo-video skill 里 director-rulings.md 的 23 条；下面是在这张卡桌上被打回后升上来的${rules.length ? '' : '（还没有）'}。</small>
     <ol start="24">${rules.map((r) => html`<li data-key="${r.from}">${r.text}</li>`)}</ol>`)
-  $('#rules-box').querySelector('summary').textContent = `导演法典 · 23 + ${rules.length} 条`
-
-  render($('#shared'), html`
-    ${rounds.length ? html`<details class="card" id="rounds-box" ${roundsOpen ? html`open` : ''}><summary>各轮用量 · ${rounds.length} 轮</summary><div class="stack">${rounds.map(([id, r]) => {
-      const s = roundSummary(data, id)
-      const done = roundComplete(data, id)
-      return html`<small data-key="${id}">第 ${r.n} 轮 · ${r.slot} · ${s.count} 张${s.usd ? ` · ${money(s.usd)}` : ''}${s.seconds ? ` · ${seconds(s.seconds)}` : ''}${s.tokens ? ` · ${tokens(s.tokens)}` : ''}${done ? ' · 交齐了' : ''}</small>`
-    })}</div></details>` : html`<gugu-empty icon="checklist"><strong>还没有卡</strong><small>写好需求，开第一轮</small></gugu-empty>`}
-    ${slots.map((slot) => {
-      const inSlot = cards.filter(([, card]) => slotOf(data, card) === slot)
-        .sort(([, a], [, b]) => (data.rounds[a.round]?.n ?? 0) - (data.rounds[b.round]?.n ?? 0) || (a.at ?? '').localeCompare(b.at ?? ''))
-      const pick = pickOf(data, slot)
-      return html`<section class="stack" data-key="slot:${slot}">
-        <div class="slot-head"><h3>${slot}</h3>${pick ? html`<span class="tag ok">已选 · ${data.cards[pick]?.title}</span>` : ''}<small class="muted">${inSlot.length} 张</small></div>
-        <div class="cards">
-          ${inSlot.map(([id, card]) => cardView(id, card))}
-        </div>
-      </section>`
-    })}`)
-  drawRoundForm()
+  // The open stage in view on the spine (a strip in a narrow panel scrolls), once each time it changes.
+  if (openRound !== shownRound) {
+    shownRound = openRound
+    document.querySelector('.node[aria-current="step"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }
+  if ($('#round-box').open) drawRoundForm()
+  if (!$('#settings').hidden) drawWriters()
   // A card's text is markdown, drawn with gugu's own renderer — again after every render, which empties these boxes.
   for (const box of document.querySelectorAll('[data-md]')) md.render(box, data.cards[box.dataset.md]?.text ?? '')
 }

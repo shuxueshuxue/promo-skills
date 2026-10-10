@@ -8,11 +8,64 @@
 </head>
 <body>
 <div id="status" role="status"></div>
-<main id="app" class="stack">
-  <section id="controls" class="stack"></section>
-  <section id="shared" class="stack"></section>
+<header id="bar">
+  <strong id="name"></strong>
+  <textarea id="brief" rows="1" aria-label="需求" placeholder="一句话：要做什么、给谁看、多长"></textarea>
+  <button id="open-round" aria-label="开一轮"><gugu-icon name="plus"></gugu-icon></button>
+  <button id="open-settings" aria-label="设置"><gugu-icon name="settings"></gugu-icon></button>
+</header>
+
+<!-- The project: the stages down the left, the open one's candidates on the right. -->
+<main id="project">
+  <nav id="spine" aria-label="阶段"></nav>
+  <section id="stage"></section>
 </main>
-<!-- outside #controls: a .stack zeroes its children's margins, and a modal dialog is centred by margin: auto -->
+
+<!-- Settings: their own place, no card in it. -->
+<main id="settings" hidden>
+  <header class="settings-head">
+    <button id="back" aria-label="回到项目"><gugu-icon name="chevron-left"></gugu-icon></button>
+    <strong>设置</strong>
+  </header>
+  <section class="stack">
+    <h5>写手</h5>
+    <small class="muted">开一轮时默认勾上的 Agent。</small>
+    <div id="writers" class="stack"></div>
+  </section>
+  <section class="stack">
+    <h5>出图 <small class="muted" id="img-state"></small></h5>
+    <small class="muted">写手出分镜、海报时，调抽卡台的出图工具，用你的 OpenRouter 密钥，费用记在你的 OpenRouter 账上。密钥只存在这台电脑上，不写进卡桌文件（对话里的人都看得到卡桌文件）。</small>
+    <label>OpenRouter API 密钥 <input id="img-key" type="password" autocomplete="off" /></label>
+    <label>出图模型 <input id="img-model" /></label>
+    <div class="row"><button class="primary" id="img-save">保存并检查</button><button id="img-clear">清掉密钥</button><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">获取密钥</a></div>
+    <small class="muted" id="img-where"></small>
+  </section>
+  <section class="stack">
+    <h5>导演法典</h5>
+    <div id="rules"></div>
+  </section>
+</main>
+
+<dialog id="round-box">
+  <form method="dialog" class="stack">
+    <strong>开一轮</strong>
+    <div class="row">
+      <label>线 <select id="r-track"></select></label>
+      <label id="r-new-track-label" hidden>新的线叫 <input id="r-new-track" placeholder="比如：海报" /></label>
+    </div>
+    <div class="row">
+      <label>出什么 <select id="r-kind"></select></label>
+      <label>位置 <input id="r-slot" placeholder="比如：叙事主线、第 3 拍" /></label>
+      <label>每人几张 <input id="r-each" type="number" min="1" max="5" value="2" /></label>
+    </div>
+    <label>这一轮的要求 <textarea id="r-ask" rows="2" placeholder="可以空着：照需求和已选的卡来"></textarea></label>
+    <fieldset><legend>谁来出卡</legend><div id="r-agents" class="agents"></div></fieldset>
+    <small class="muted" id="r-refs"></small>
+    <div class="row"><button type="button" id="r-cancel">取消</button><button type="button" class="primary" id="r-start">开始</button></div>
+  </form>
+</dialog>
+
+<!-- outside main: a .stack zeroes its children's margins, and a modal dialog is centred by margin: auto -->
 <dialog id="say-box">
   <div class="stack">
     <strong id="say-title"></strong>
