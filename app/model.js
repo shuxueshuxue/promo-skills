@@ -77,8 +77,9 @@ export function sentBack(data, cardId) {
 }
 
 /**
- * Whether a note or reject on a card is answered, as an agent's board says it (`answered: false` = a new version is
- * owed): a newer version is in — or, for a reject, the card is no longer sent back (the person picked it since).
+ * Whether a note or reject on a card is answered, as an agent's board says it: a newer version is in — or, for a
+ * reject, the card is no longer sent back (the person picked it since). `answered: false` on a reject means a new
+ * version is owed; on a note only that no newer version has come in since — nothing is owed.
  */
 export function answered(data, cardId, entry) {
   const card = data.cards[cardId]

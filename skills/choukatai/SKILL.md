@@ -34,7 +34,8 @@ on that file. It tells you:
 - `askedOfYou` — rounds that want cards from you: the line it is a step of (`track`: 片子, 文字…), the kind (叙事 / 文案 /
   分镜 / 变式 / 片头 / 整片 / 宣传稿), the slot,
   the person's ask, how many cards (`each`), how many you have handed in, and the picked cards to build on (`refs`);
-- `feedbackOnYours` — notes and rejects on your cards; `answered: false` means a new version is owed;
+- `feedbackOnYours` — notes and rejects on your cards; `answered: false` on a **reject** means a new version is owed;
+  on a note it only means no newer version has come in since — use it, nothing is owed;
 - `cards` — every card with its status and the latest notes on it;
 - `rules.added` — rules this table promoted from rejections. They bind as hard as the 23.
 
@@ -79,7 +80,8 @@ the chat timeline; when you are done, one line to whoever asked is enough.
 - **选这张** — this card is the slot's choice; the next round builds on it.
 - **批注** — a note, not a rejection; it wakes nobody — you find it on the table (`board` → `feedbackOnYours`). Use it in
   your next version or the next round. An agent's `note` is the same thing.
-- **批注 with 「要作者交新版」 ticked** — 打回 (rejected). A new version of the card answers it. If they ticked
-  **升为规矩**, the comment is now a rule.
+- **批注 with 「要作者交新版」 ticked** — 打回 (rejected). A new version of the card answers it — or the person picking it
+  again, which takes the reject back. If they ticked **升为规矩**, the comment is now a rule.
 
-There is no "approve": a card is accepted when no reject of it is newer than its latest version.
+There is no "approve": a card is accepted when no reject of it is newer than both its latest version and
+its latest pick.
