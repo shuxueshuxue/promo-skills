@@ -64,11 +64,16 @@ export function pickOfRound(data, roundId) {
   return id && !sentBack(data, id) ? id : null
 }
 
-/** A card sent back: its latest note or reject is a reject, and no newer version has come in since. */
+/**
+ * A card sent back: its latest reject is newer than both its latest version and its latest pick. A note after it
+ * changes nothing (anyone can write one); a new version answers it, and a pick after it is the person changing mind.
+ */
 export function sentBack(data, cardId) {
   const card = data.cards[cardId]
-  const last = feedbackOf(data, cardId).filter((entry) => entry.verdict !== 'pick').at(-1)
-  return last?.verdict === 'reject' && time(card.updatedAt ?? card.at) <= time(last.ts)
+  const fb = feedbackOf(data, cardId)
+  const reject = fb.filter((entry) => entry.verdict === 'reject').at(-1)
+  const pick = fb.filter((entry) => entry.verdict === 'pick').at(-1)
+  return Boolean(reject) && time(card.updatedAt ?? card.at) <= time(reject.ts) && time(pick?.ts) < time(reject.ts)
 }
 
 /**
@@ -120,15 +125,10 @@ export function statusOf(data, cardId) {
   const rejects = fb.filter((entry) => entry.verdict === 'reject').length
   const updated = time(card.updatedAt ?? card.at)
   const last = fb.at(-1)
-  if (pickOf(data, slotOf(data, card)) === cardId && !sentBack(data, cardId)) {
-    return { state: 'picked', label: '已选', rejects }
-  }
+  if (sentBack(data, cardId)) return { state: 'work', label: `打回 ×${rejects} · 整改中`, rejects }
+  if (pickOf(data, slotOf(data, card)) === cardId) return { state: 'picked', label: '已选', rejects }
   if (!last) return { state: 'new', label: '待你挑', rejects }
-  if (last.verdict === 'reject') {
-    return updated > time(last.ts)
-      ? { state: 'review', label: `待复审 第 ${rejects + 1} 轮`, rejects }
-      : { state: 'work', label: `打回 ×${rejects} · 整改中`, rejects }
-  }
+  if (last.verdict === 'reject') return { state: 'review', label: `待复审 第 ${rejects + 1} 轮`, rejects }
   return updated > time(last.ts) ? { state: 'review', label: '批注后有新版', rejects } : { state: 'review', label: '有批注', rejects }
 }
 

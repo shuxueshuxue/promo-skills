@@ -1,7 +1,7 @@
 // 抽卡台 model: the table made whole on open, and a card's history. Run: node --test tests/*.mjs
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { eventsOf, normalizeTable, pickOfRound, tracksInOrder } from '../app/model.js'
+import { eventsOf, normalizeTable, pickOfRound, sentBack, statusOf, tracksInOrder } from '../app/model.js'
 
 /** A table as 0.2.0 wrote it: rounds without a line, a card revised before versions were kept. */
 const before030 = () => ({
@@ -68,6 +68,26 @@ test('pickOfRound: a pick sent back is no pick until the new version is in (the 
   assert.equal(pickOfRound(data, 'r1'), null)
   Object.assign(data.cards.c1, { version: 2, updatedAt: '2026-10-07T12:50:00Z' })
   assert.equal(pickOfRound(data, 'r1'), 'c1')
+})
+
+test('a note after a reject does not undo it: still sent back, still being reworked', () => {
+  const data = before030()
+  normalizeTable(data)
+  data.feedback.f3 = { card: 'c1', verdict: 'reject', comment: 'again', who: 'user:p', ts: '2026-10-07T12:40:00Z' }
+  data.feedback.f4 = { card: 'c1', verdict: 'note', comment: 'nice colours', who: 'user:agent', ts: '2026-10-07T12:45:00Z' }
+  assert.equal(sentBack(data, 'c1'), true)
+  assert.equal(pickOfRound(data, 'r1'), null)
+  assert.equal(statusOf(data, 'c1').state, 'work')
+})
+
+test('a pick after a reject is the person changing mind: picked again', () => {
+  const data = before030()
+  normalizeTable(data)
+  data.feedback.f3 = { card: 'c1', verdict: 'reject', comment: 'again', who: 'user:p', ts: '2026-10-07T12:40:00Z' }
+  data.feedback.f4 = { card: 'c1', verdict: 'pick', who: 'user:p', ts: '2026-10-07T12:45:00Z' }
+  assert.equal(sentBack(data, 'c1'), false)
+  assert.equal(pickOfRound(data, 'r1'), 'c1')
+  assert.equal(statusOf(data, 'c1').state, 'picked')
 })
 
 test('pickOfRound: two rounds on one slot (位置 left empty, so slot = kind) each keep their own pick', () => {
