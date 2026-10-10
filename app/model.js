@@ -53,15 +53,22 @@ export function tracksInOrder(data) {
 }
 
 /**
- * The card picked in a round: its latest pick, as long as it still stands by statusOf — the judgement the agents get
- * on board. A pick sent back (a reject newer than its latest version) is no pick until the new version is in.
+ * The card picked in a round: its latest pick, unless that card was sent back since — then no pick until the new
+ * version is in (the same judgement statusOf gives agents on board).
  */
 export function pickOfRound(data, roundId) {
   const picks = Object.values(data.feedback ?? {})
     .filter((entry) => entry.verdict === 'pick' && data.cards?.[entry.card]?.round === roundId)
     .sort((a, b) => time(b.ts) - time(a.ts))
   const id = picks[0]?.card ?? null
-  return id && statusOf(data, id).state === 'picked' ? id : null
+  return id && !sentBack(data, id) ? id : null
+}
+
+/** A card sent back: its latest note or reject is a reject, and no newer version has come in since. */
+export function sentBack(data, cardId) {
+  const card = data.cards[cardId]
+  const last = feedbackOf(data, cardId).filter((entry) => entry.verdict !== 'pick').at(-1)
+  return last?.verdict === 'reject' && time(card.updatedAt ?? card.at) <= time(last.ts)
 }
 
 /**
@@ -113,7 +120,7 @@ export function statusOf(data, cardId) {
   const rejects = fb.filter((entry) => entry.verdict === 'reject').length
   const updated = time(card.updatedAt ?? card.at)
   const last = fb.at(-1)
-  if (pickOf(data, slotOf(data, card)) === cardId && !(last?.verdict === 'reject' && updated <= time(last.ts))) {
+  if (pickOf(data, slotOf(data, card)) === cardId && !sentBack(data, cardId)) {
     return { state: 'picked', label: '已选', rejects }
   }
   if (!last) return { state: 'new', label: '待你挑', rejects }

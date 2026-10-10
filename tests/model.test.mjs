@@ -70,6 +70,20 @@ test('pickOfRound: a pick sent back is no pick until the new version is in (the 
   assert.equal(pickOfRound(data, 'r1'), 'c1')
 })
 
+test('pickOfRound: two rounds on one slot (位置 left empty, so slot = kind) each keep their own pick', () => {
+  const data = {
+    rounds: { r1: { n: 1, kind: '叙事', slot: '叙事' }, r2: { n: 2, kind: '叙事', slot: '叙事' } },
+    cards: { a: { round: 'r1', version: 1, at: '2026-10-07T12:00:00Z' }, b: { round: 'r2', version: 1, at: '2026-10-07T13:00:00Z' } },
+    feedback: {
+      f1: { card: 'a', verdict: 'pick', ts: '2026-10-07T12:30:00Z' },
+      f2: { card: 'b', verdict: 'pick', ts: '2026-10-07T13:30:00Z' },
+    },
+  }
+  normalizeTable(data)
+  assert.equal(pickOfRound(data, 'r1'), 'a')
+  assert.equal(pickOfRound(data, 'r2'), 'b')
+})
+
 test('eventsOf: a version overwritten before 0.3.0 is marked lost; a kept one carries its text', () => {
   const data = before030()
   normalizeTable(data)
