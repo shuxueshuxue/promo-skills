@@ -2,7 +2,7 @@
 // The card table is the file the agent was woken about; what to do with it is the choukatai skill (skills/choukatai).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { feedbackOf, normalizeTable, roundsInOrder, slotOf, statusOf } from './model.js'
+import { answered, feedbackOf, normalizeTable, roundsInOrder, slotOf, statusOf } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .chouka.json file the whisper you got is about.' }
@@ -86,7 +86,7 @@ export const board = {
         feedbackOnYours: mine.flatMap(([cid, card]) =>
           feedbackOf(data, cid)
             .filter((entry) => entry.verdict !== 'pick')
-            .map((entry) => ({ card: cid, title: card.title, verdict: entry.verdict, comment: entry.comment, at: entry.ts, answered: Date.parse(card.updatedAt ?? card.at) > Date.parse(entry.ts) })),
+            .map((entry) => ({ card: cid, title: card.title, verdict: entry.verdict, comment: entry.comment, at: entry.ts, answered: answered(data, cid, entry) })),
         ),
         cards: cards.map(([cid, card]) => ({ ...cardLine(data, cid, card), text: short(card.text) })),
       }

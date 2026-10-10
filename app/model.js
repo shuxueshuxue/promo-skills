@@ -77,6 +77,15 @@ export function sentBack(data, cardId) {
 }
 
 /**
+ * Whether a note or reject on a card is answered, as an agent's board says it (`answered: false` = a new version is
+ * owed): a newer version is in — or, for a reject, the card is no longer sent back (the person picked it since).
+ */
+export function answered(data, cardId, entry) {
+  const card = data.cards[cardId]
+  return time(card.updatedAt ?? card.at) > time(entry.ts) || (entry.verdict === 'reject' && !sentBack(data, cardId))
+}
+
+/**
  * A card's history, oldest first: each version handed in (with what it said, when it was kept), and every note, reject
  * and pick. A version whose text a newer one overwrote before 0.3.0 has `lost: true`.
  */

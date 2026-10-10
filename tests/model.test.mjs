@@ -1,7 +1,7 @@
 // 抽卡台 model: the table made whole on open, and a card's history. Run: node --test tests/*.mjs
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { eventsOf, normalizeTable, pickOfRound, sentBack, statusOf, tracksInOrder } from '../app/model.js'
+import { answered, eventsOf, feedbackOf, normalizeTable, pickOfRound, sentBack, statusOf, tracksInOrder } from '../app/model.js'
 
 /** A table as 0.2.0 wrote it: rounds without a line, a card revised before versions were kept. */
 const before030 = () => ({
@@ -88,6 +88,25 @@ test('a pick after a reject is the person changing mind: picked again', () => {
   assert.equal(sentBack(data, 'c1'), false)
   assert.equal(pickOfRound(data, 'r1'), 'c1')
   assert.equal(statusOf(data, 'c1').state, 'picked')
+})
+
+test('what the page shows and what the board tells the author agree, in the four ways a reject goes', () => {
+  // card a in round r1, one step every 10 minutes; 'v' is a new version handed in
+  const run = (steps) => {
+    const data = { rounds: { r1: { n: 1, kind: '叙事' } }, cards: { a: { round: 'r1', version: 1, at: '2026-10-07T12:00:00Z' } }, feedback: {} }
+    steps.forEach((step, i) => {
+      const ts = new Date(Date.parse('2026-10-07T12:10:00Z') + i * 600_000).toISOString()
+      if (step === 'v') Object.assign(data.cards.a, { version: data.cards.a.version + 1, updatedAt: ts })
+      else data.feedback[`f${i}`] = { card: 'a', verdict: step, ts }
+    })
+    normalizeTable(data)
+    const board = feedbackOf(data, 'a').filter((e) => e.verdict !== 'pick').map((e) => `${e.verdict}:${answered(data, 'a', e)}`)
+    return [pickOfRound(data, 'r1'), statusOf(data, 'a').state, board.join(' ')]
+  }
+  assert.deepEqual(run(['pick', 'reject']), [null, 'work', 'reject:false'])
+  assert.deepEqual(run(['pick', 'reject', 'note']), [null, 'work', 'reject:false note:false'])
+  assert.deepEqual(run(['pick', 'reject', 'pick']), ['a', 'picked', 'reject:true'])
+  assert.deepEqual(run(['reject', 'v', 'pick']), ['a', 'picked', 'reject:true'])
 })
 
 test('pickOfRound: two rounds on one slot (位置 left empty, so slot = kind) each keep their own pick', () => {
