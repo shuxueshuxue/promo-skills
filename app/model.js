@@ -6,7 +6,8 @@
 //             track: the line the round is a step of (「片子」「文字」…), chosen when the round is opened
 //   cards     { [id]: { round, slot, kind, by, model, title, text, files: [itemId], parents: [cardId], version, at, updatedAt,
 //                       cost: { usd, seconds, tokens }, versions: { [n]: { title, text, files, model, cost, at } } } }
-//             versions: the earlier versions a new one replaced (the current one is the card itself)
+//             versions: the earlier versions a new one replaced (the current one is the card itself); absent on a card
+//             that was never revised from 0.3.0 on
 //   feedback  { [id]: { card, verdict: note | reject | pick, comment, who, ts } }   append-only, as review/feedback.jsonl was;
 //             a note is anyone's — a person's or an agent's they asked to look; reject and pick are the person's
 //   rules     { [id]: { text, from, by, at } }                   rules added on this table, on top of director-rulings.md
@@ -26,9 +27,9 @@ export const TRACKS = ['片子', '文字']
  * The table made whole, once, by whoever opens it — the page or an agent's tool, maybe several at the same time. It only
  * adds what is missing, so running it again changes nothing and a value someone set is never replaced. Returns how many
  * things it added (0 once the table is whole).
- * A table written before 0.3.0 has rounds without a line and cards without their earlier versions: the line is guessed
- * here, the one time, from the round's kind (宣传稿 is 文字, the rest 片子) and from then on read as written; an earlier
- * version's text was overwritten before 0.3.0 kept it, so those cards start with no saved versions.
+ * A table written before 0.3.0 has rounds without a line: it is guessed here, the one time, from the round's kind
+ * (宣传稿 is 文字, the rest 片子) and from then on read as written. Cards get nothing: `versions` is written by the
+ * submit that first revises a card (filling an empty one here could race that write and lose it).
  */
 export function normalizeTable(data) {
   let added = 0
@@ -37,9 +38,6 @@ export function normalizeTable(data) {
   }
   for (const round of Object.values(data.rounds)) {
     if (typeof round.track !== 'string' || !round.track) { round.track = round.kind === '宣传稿' ? '文字' : '片子'; added += 1 }
-  }
-  for (const card of Object.values(data.cards)) {
-    if (!card.versions || typeof card.versions !== 'object') { card.versions = {}; added += 1 }
   }
   return added
 }
@@ -54,12 +52,16 @@ export function tracksInOrder(data) {
   return [...tracks].map(([name, rounds]) => ({ name, rounds }))
 }
 
-/** The card picked in a round: its latest pick. */
+/**
+ * The card picked in a round: its latest pick, as long as it still stands by statusOf — the judgement the agents get
+ * on board. A pick sent back (a reject newer than its latest version) is no pick until the new version is in.
+ */
 export function pickOfRound(data, roundId) {
   const picks = Object.values(data.feedback ?? {})
     .filter((entry) => entry.verdict === 'pick' && data.cards?.[entry.card]?.round === roundId)
     .sort((a, b) => time(b.ts) - time(a.ts))
-  return picks[0]?.card ?? null
+  const id = picks[0]?.card ?? null
+  return id && statusOf(data, id).state === 'picked' ? id : null
 }
 
 /**

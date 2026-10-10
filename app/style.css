@@ -18,8 +18,8 @@ body { margin: 0; }
 .node[aria-current="step"] { background: var(--em-selected); }
 .node.branch { padding-left: calc(var(--em-spacing-sm) + 28px); }
 .dot { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; flex: none; }
-.dot .dot-media { width: 100%; height: 100%; object-fit: cover; display: block; }
-.dot:has(.dot-media) { box-shadow: inset 0 0 0 2px var(--em-accent-9); }
+/* the ring on the picture itself: a pale still must not read as the empty ring of a stage with no pick */
+.dot .dot-media { width: 100%; height: 100%; object-fit: cover; display: block; border: 2px solid var(--em-accent-9); border-radius: 50%; box-sizing: border-box; }
 .dot.chosen { background: var(--em-accent-9); }
 .dot.chosen::after { content: ''; width: 6px; height: 11px; border: solid var(--em-accent-contrast); border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
 .dot.empty { border: 2px dashed var(--em-border-1); }
@@ -76,9 +76,15 @@ body { margin: 0; }
 @media (max-width: 600px) {
   #project { grid-template-columns: 1fr; min-height: 0; }
   #spine { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--em-border); padding: var(--em-spacing-sm); }
-  .node, .node.branch { grid-template-columns: 36px; justify-items: center; width: 84px; flex: none; padding: var(--em-spacing-xs); }
+  #spine { align-items: flex-start; padding-top: 18px; }
+  .node, .node.branch { grid-template-columns: 36px; justify-items: center; width: 84px; flex: none; padding: var(--em-spacing-xs); position: relative; }
+  /* a line other than the trunk sits a step lower, and where the line changes a divider carries its name */
+  .node.branch { margin-top: 14px; }
+  .node.line-start { margin-left: var(--em-spacing-md); }
+  .node.line-start::before { content: attr(data-line); position: absolute; left: calc(-1 * var(--em-spacing-sm)); top: -12px; bottom: 0; border-left: 1px solid var(--em-border-1); padding-left: 4px; font-size: var(--em-font-caption); color: var(--em-foreground-muted); white-space: nowrap; }
   .node-text { width: 76px; text-align: center; }
-  .node-pick, .tally { display: none; }
+  .node-pick { display: none; }
+  .tally { justify-content: center; }
   #stage { padding: var(--em-spacing-md); }
-  #brief { max-height: 2lh; }
+  #brief { max-height: 3em; overflow-y: auto; }
 }

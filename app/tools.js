@@ -12,8 +12,8 @@ const short = (text, n = 280) => (text && text.length > n ? `${text.slice(0, n)}
 
 async function openBoard(board) {
   const f = await gugu.files.open({ id: board })
-  // The same once-only fill the page does (model.js normalizeTable): a table from before 0.3.0 gets its lines and the
-  // cards their (empty) earlier versions, whoever opens it first.
+  // The same once-only fill the page does (model.js normalizeTable): a table from before 0.3.0 gets its lines, whoever
+  // opens it first.
   if (normalizeTable(structuredClone(f.toJSON()))) f.transact(() => normalizeTable(f.data))
   return f
 }
@@ -148,7 +148,7 @@ export const submit = {
       } else {
         id = newId('c')
         const parents = [...new Set([...(args.parents ?? []), ...(args.card ? [args.card] : [])])].filter((cid) => f.data.cards[cid])
-        f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, versions: {}, at, updatedAt: at }
+        f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, at, updatedAt: at }
       }
       await flushed(f)
       return { card: id, version: f.data.cards[id].version, revised: Boolean(own) }

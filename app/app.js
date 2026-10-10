@@ -296,7 +296,8 @@ document.addEventListener('click', (event) => {
   const el = event.target.closest('[data-act]')
   if (!el) return
   const { act, card, round } = el.dataset
-  if (act === 'stage') { openRound = round; askOpen = false; draw() }
+  // render keeps the focused element as it is, and a click focuses the node — so step out, redraw, step back in.
+  if (act === 'stage') { openRound = round; askOpen = false; el.blur(); draw(); el.focus({ preventScroll: true }) }
   else if (act === 'pick') f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }
   else if (act === 'note') ask(card)
   else if (act === 'open') { opened.has(card) ? opened.delete(card) : opened.add(card); draw() }
@@ -308,14 +309,17 @@ document.addEventListener('click', (event) => {
 function spineView(data) {
   const tracks = tracksInOrder(data)
   const trunk = tracks[0]?.name
+  let previous = null // the line of the node before: where it changes, the strip (a narrow panel) draws a divider
   return html`${roundsInOrder(data).map(([id, round]) => {
+    const lineStart = previous !== null && round.track !== previous
+    previous = round.track
     const pick = pickOfRound(data, id)
     const card = pick ? data.cards[pick] : null
     const dot = card
       ? (card.files?.length ? html`<span class="dot">${mediaView(card.files[0], 'dot-media')}</span>` : html`<span class="dot chosen"></span>`)
       : html`<span class="dot empty"></span>`
     const cards = Object.entries(data.cards).filter(([, c]) => c.round === id)
-    return html`<button class="node ${round.track === trunk ? '' : 'branch'}" data-key="${id}" data-act="stage" data-round="${id}" aria-current="${id === openRound ? 'step' : 'false'}">
+    return html`<button class="node ${round.track === trunk ? '' : 'branch'} ${lineStart ? 'line-start' : ''}" data-line="${round.track}" data-key="${id}" data-act="stage" data-round="${id}" aria-current="${id === openRound ? 'step' : 'false'}">
       ${dot}
       <span class="node-text"><span class="node-slot">${round.slot}</span><small class="muted node-pick">${card?.title ?? ''}</small>
         <span class="tally">${cards.map(([cid]) => html`<i class="${cid === pick ? 'on' : eventsOf(data, cid).some((e) => e.kind === 'reject') ? 'x' : ''}"></i>`)}</span></span>

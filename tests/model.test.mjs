@@ -1,4 +1,4 @@
-// 抽卡台 model: the table made whole on open, and a card's history. Run: node --test tests/
+// 抽卡台 model: the table made whole on open, and a card's history. Run: node --test tests/*.mjs
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { eventsOf, normalizeTable, pickOfRound, tracksInOrder } from '../app/model.js'
@@ -41,11 +41,11 @@ test('a line someone set is kept; a missing one is guessed once from the kind', 
   assert.equal(data.rounds.r2.track, '文字')
 })
 
-test('missing maps are made, and cards get an empty set of earlier versions', () => {
+test('missing maps are made; cards are left as they are (versions is written by the submit that revises a card)', () => {
   const data = { rounds: { r1: { n: 1, kind: '叙事' } }, cards: { c1: { round: 'r1', version: 1 } } }
   normalizeTable(data)
   for (const key of ['feedback', 'rules', 'names']) assert.deepEqual(data[key], {})
-  assert.deepEqual(data.cards.c1.versions, {})
+  assert.deepEqual(data.cards.c1, { round: 'r1', version: 1 })
 })
 
 test('tracksInOrder: the first line started is the trunk; rounds in order within a line', () => {
@@ -61,13 +61,22 @@ test('pickOfRound is the latest pick among the round\'s own cards', () => {
   assert.equal(pickOfRound(data, 'r2'), null)
 })
 
+test('pickOfRound: a pick sent back is no pick until the new version is in (the judgement board gives agents)', () => {
+  const data = before030()
+  normalizeTable(data)
+  data.feedback.f3 = { card: 'c1', verdict: 'reject', comment: 'again', who: 'user:p', ts: '2026-10-07T12:40:00Z' }
+  assert.equal(pickOfRound(data, 'r1'), null)
+  Object.assign(data.cards.c1, { version: 2, updatedAt: '2026-10-07T12:50:00Z' })
+  assert.equal(pickOfRound(data, 'r1'), 'c1')
+})
+
 test('eventsOf: a version overwritten before 0.3.0 is marked lost; a kept one carries its text', () => {
   const data = before030()
   normalizeTable(data)
   const old = eventsOf(data, 'c2')
   assert.deepEqual(old.map((e) => [e.kind, e.version ?? null, Boolean(e.lost)]), [['version', 1, true], ['reject', null, false], ['version', 2, false]])
   // A revision made from 0.3.0 on keeps the replaced text (what submit writes).
-  data.cards.c2.versions['2'] = { title: 'two', text: 'v2 text', at: '2026-10-07T13:40:00Z' }
+  data.cards.c2.versions = { ...(data.cards.c2.versions ?? {}), 2: { title: 'two', text: 'v2 text', at: '2026-10-07T13:40:00Z' } }
   Object.assign(data.cards.c2, { text: 'v3 text', version: 3, updatedAt: '2026-10-07T14:00:00Z' })
   const kept = eventsOf(data, 'c2').filter((e) => e.kind === 'version')
   assert.deepEqual(kept.map((e) => [e.version, e.saved?.text ?? null, Boolean(e.lost)]), [[1, null, true], [2, 'v2 text', false], [3, 'v3 text', false]])
