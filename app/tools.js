@@ -38,7 +38,7 @@ const VIDEO = {
   type: 'object',
   required: ['path', 'cover', 'strip'],
   properties: {
-    path: { type: 'string', description: 'The finished clip in your working copy, relative to it (renders/cut.mp4). It stays there — the card keeps where it is, not a copy.' },
+    path: { type: 'string', description: 'The review render (720p, at most 25 MB) in your working copy, relative to it (renders/cut.720p.mp4). It stays there — the card keeps where it is, not a copy.' },
     cover: { type: 'string', description: 'Item id of one frame of it (a jpg, the frame at 5 s) you put in this chat with workspace_upload_file.' },
     strip: { type: 'string', description: 'Item id of its keyframes in one picture (8 frames side by side, a jpg), in this chat.' },
     seconds: { type: 'number' },
@@ -47,6 +47,9 @@ const VIDEO = {
   },
   description: 'A clip whose original stays on your machine: only the cover and the strip go to the chat. Instead of putting the clip itself in files.',
 }
+
+/** The largest file an App can open (gugu's open-file limit): a bigger original could be kept but never played. */
+const PLAYABLE_BYTES = 25 * 1024 * 1024
 
 /** The original of a clip, read where the agent works (gugu stamps which session and which working copy — never its word). */
 async function originalOf(video, { session, workspaceRoot }) {
@@ -66,6 +69,9 @@ async function originalOf(video, { session, workspaceRoot }) {
   if (!inside || inside.startsWith('..') || path.isAbsolute(inside)) throw new Error(`${rel} leads outside your working copy`)
   const stat = statSync(abs)
   if (!stat.isFile()) throw new Error(`${rel} is not a file`)
+  if (stat.size > PLAYABLE_BYTES) {
+    throw new Error(`${rel} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the table plays an original of up to 25 MB — hand in the 720p review render instead and keep the master where you rendered it`)
+  }
   const sha256 = await new Promise((resolve, reject) => {
     const hash = createHash('sha256')
     createReadStream(abs).on('data', (chunk) => hash.update(chunk)).on('end', () => resolve(hash.digest('hex'))).on('error', reject)

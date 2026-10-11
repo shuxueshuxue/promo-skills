@@ -55,8 +55,10 @@ on that file. It tells you:
    - posters and key visuals: 抽卡台's `image` tool, uploaded the same way (`references`, absolute paths, keep a
      mascot's or a screenshot's look);
    - clips: real product footage follows the promo-video skill (capture, assemble, a variant render); intros and moods
-     may come from a video API. The clip itself stays where you rendered it — hand it in with `video`, not `files`:
-     `video.path` is the finished clip in your working copy (relative, e.g. `renders/cut.mp4`); `video.cover` is one
+     may come from a video API. Hand in the review render (720p is plenty, and it must be at most 25 MB — the largest
+     file the table can play; the master stays on the machine that rendered it). It stays where you rendered it too —
+     hand it in with `video`, not `files`:
+     `video.path` is that render in your working copy (relative, e.g. `renders/cut.720p.mp4`); `video.cover` is one
      frame of it (`ffmpeg -ss 5 -i cut.mp4 -frames:v 1 cover.jpg`) and `video.strip` its keyframes side by side in one
      picture (`ffmpeg -i cut.mp4 -vf "fps=8/<seconds>,scale=320:-2,tile=8x1" -frames:v 1 strip.jpg`), both put in the
      same chat with `workspace_upload_file` (`mime_type` `image/jpeg`) and given by item id; add `seconds`, `width`,

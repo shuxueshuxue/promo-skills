@@ -83,34 +83,50 @@ function mediaView(itemId, cls = 'media') {
 }
 
 // ─── a clip's original: it stays in the working copy of the session that made it (cards[].video.at), opened on demand ──
-const originals = new Map() // cardId → 'loading' | { url, changed } | { error }
+// Keyed by the clip itself (its sha256, else where it is), never by the card: a new version of the card brings a new
+// clip, and the page plays that one — not the one it played before the reject.
+const originals = new Map() // clip key → 'loading' | { url, changed } | { error }
+const shown = new Map() // cardId → the clip key it last showed (its object URL goes when the card moves on)
+const clipKey = (video) => video.sha256 || `${video.at.session}/${video.at.path}`
 const hex = (buffer) => [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
 async function loadOriginal(cardId, video) {
-  originals.set(cardId, 'loading')
+  const key = clipKey(video)
+  originals.set(key, 'loading')
   draw()
+  let file = null
   try {
-    const file = await window.gugu.files.open({ session: video.at.session, name: video.at.path }, { readOnly: true })
+    file = await window.gugu.files.open({ session: video.at.session, name: video.at.path }, { readOnly: true })
     const blob = await file.blob()
-    file.close()
     const sha = video.sha256 ? hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())) : null
-    originals.set(cardId, { url: URL.createObjectURL(blob), changed: Boolean(sha && sha !== video.sha256) })
+    originals.set(key, { url: URL.createObjectURL(blob), changed: Boolean(sha && sha !== video.sha256) })
   } catch (error) {
     const why = error.code === 'file-unavailable'
       ? `原片在交卡的那台电脑上，它现在连不上（${error.message}）`
       : error.code === 'not-found'
         ? `这里读不到原片：它在交卡那条会话的工作区里（${error.message}）`
         : `原片打不开：${error.message}`
-    originals.set(cardId, { error: why })
+    originals.set(key, { error: why })
+  } finally {
+    file?.close()
   }
   draw()
 }
 const megabytes = (bytes) => (bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : '')
 function videoView(cardId, video, open) {
-  const original = originals.get(cardId)
+  const key = clipKey(video)
+  const before = shown.get(cardId)
+  if (before && before !== key) {
+    // The card has a new clip: the old one's bytes are let go.
+    const old = originals.get(before)
+    if (old?.url) URL.revokeObjectURL(old.url)
+    originals.delete(before)
+  }
+  shown.set(cardId, key)
+  const original = originals.get(key)
   const facts = [video.seconds ? `${Math.round(video.seconds * 10) / 10} 秒` : '', video.width && video.height ? `${video.width}×${video.height}` : '', megabytes(video.bytes)].filter(Boolean).join(' · ')
   return html`<div class="pics">${mediaView(video.cover)}</div>
     ${open && video.strip ? html`<div class="strip">${mediaView(video.strip)}</div>` : ''}
-    ${original?.url ? html`<video class="media" data-key="original:${cardId}" src="${original.url}" controls playsinline preload="metadata"></video>` : ''}
+    ${original?.url ? html`<video class="media" data-key="original:${key}" src="${original.url}" controls playsinline preload="metadata"></video>` : ''}
     ${original?.changed ? html`<small class="muted" role="alert">原片在交卡之后改过了（和卡上记的不是同一份）。</small>` : ''}
     ${original?.error ? html`<small class="muted" role="alert">${original.error}</small>` : ''}
     <small class="muted">原片${facts ? ` ${facts}` : ''}，留在交卡的电脑上，云端只有封面和缩略条。</small>
