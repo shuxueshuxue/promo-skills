@@ -296,8 +296,7 @@ document.addEventListener('click', (event) => {
   const el = event.target.closest('[data-act]')
   if (!el) return
   const { act, card, round } = el.dataset
-  // render keeps the focused element as it is, and a click focuses the node — so step out, redraw, step back in.
-  if (act === 'stage') { openRound = round; askOpen = false; el.blur(); draw(); el.focus({ preventScroll: true }) }
+  if (act === 'stage') { openRound = round; askOpen = false; draw() }
   else if (act === 'pick') f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }
   else if (act === 'note') ask(card)
   else if (act === 'open') { opened.has(card) ? opened.delete(card) : opened.add(card); draw() }
