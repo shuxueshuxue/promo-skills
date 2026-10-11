@@ -134,3 +134,16 @@ test('eventsOf: a version overwritten before 0.3.0 is marked lost; a kept one ca
   const kept = eventsOf(data, 'c2').filter((e) => e.kind === 'version')
   assert.deepEqual(kept.map((e) => [e.version, e.saved?.text ?? null, Boolean(e.lost)]), [[1, null, true], [2, 'v2 text', false], [3, 'v3 text', false]])
 })
+
+test('a clip keeps its original where it was made: the card shows its cover first, the path is kept relative and inside', async () => {
+  const { coverOf, workingCopyPath } = await import('../app/model.js')
+  assert.equal(coverOf({ files: ['f1'], video: { cover: 'v1' } }), 'v1')
+  assert.equal(coverOf({ files: ['f1'] }), 'f1')
+  assert.equal(coverOf({ text: 'only words' }), null)
+  assert.equal(workingCopyPath('renders/cut.mp4'), 'renders/cut.mp4')
+  assert.equal(workingCopyPath('./renders//cut.mp4'), 'renders/cut.mp4')
+  assert.equal(workingCopyPath('renders\\cut.mp4'), 'renders/cut.mp4')
+  for (const bad of ['', '/abs/cut.mp4', 'C:\\x\\cut.mp4', '\\\\host\\share\\cut.mp4', '../cut.mp4', 'a/../../cut.mp4']) {
+    assert.equal(workingCopyPath(bad), null, bad)
+  }
+})

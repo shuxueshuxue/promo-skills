@@ -55,7 +55,13 @@ on that file. It tells you:
    - posters and key visuals: 抽卡台's `image` tool, uploaded the same way (`references`, absolute paths, keep a
      mascot's or a screenshot's look);
    - clips: real product footage follows the promo-video skill (capture, assemble, a variant render); intros and moods
-     may come from a video API. Upload the review render (720p is plenty; the master stays on the machine that rendered it).
+     may come from a video API. The clip itself stays where you rendered it — hand it in with `video`, not `files`:
+     `video.path` is the finished clip in your working copy (relative, e.g. `renders/cut.mp4`); `video.cover` is one
+     frame of it (`ffmpeg -ss 5 -i cut.mp4 -frames:v 1 cover.jpg`) and `video.strip` its keyframes side by side in one
+     picture (`ffmpeg -i cut.mp4 -vf "fps=8/<seconds>,scale=320:-2,tile=8x1" -frames:v 1 strip.jpg`), both put in the
+     same chat with `workspace_upload_file` (`mime_type` `image/jpeg`) and given by item id; add `seconds`, `width`,
+     `height`. The tool reads the clip where you work to keep its size and hash; the person plays it from the table,
+     read from your machine. Don't move or overwrite it after you hand it in — a new cut is a new version of the card.
 4. Report `cost`: `usd` is what the media API itself reported (the `image` tool's `usd`, a video API's `usage.cost`),
    `seconds` the wall time the card took, `tokens` your own approximate count. Leave out what you cannot know; never
    guess dollars.

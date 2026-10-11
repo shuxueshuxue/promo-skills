@@ -8,6 +8,10 @@
 //                       cost: { usd, seconds, tokens }, versions: { [n]: { title, text, files, model, cost, at } } } }
 //             versions: the earlier versions a new one replaced (the current one is the card itself); absent on a card
 //             that was never revised from 0.3.0 on
+//             video (0.4.0): a clip whose original stays where it was made — { cover: itemId, strip: itemId, seconds,
+//             width, height, bytes, sha256, at: { session, path } }: the cover (a frame) and the strip (frames in one
+//             picture) are in the chat; the original is the file `path` of that session's working copy, on the machine
+//             that made it. A card has files, a video, or both.
 //   feedback  { [id]: { card, verdict: note | reject | pick, comment, who, ts } }   append-only, as review/feedback.jsonl was;
 //             a note is anyone's — a person's or an agent's they asked to look; reject and pick are the person's
 //   rules     { [id]: { text, from, by, at } }                   rules added on this table, on top of director-rulings.md
@@ -155,6 +159,20 @@ export function roundComplete(data, roundId) {
   if (!round) return false
   const mine = (agent) => Object.values(data.cards ?? {}).filter((card) => card.round === roundId && card.by === agent).length
   return (round.agents ?? []).every((agent) => mine(agent) >= (round.each ?? 1))
+}
+
+/** The picture a card shows first (its spine dot, its first face): a clip's cover, else its first file. */
+export const coverOf = (card) => card?.video?.cover ?? card?.files?.[0] ?? null
+
+/**
+ * A path in a working copy as a card keeps it (POSIX, relative, inside): null when it is empty, absolute, or climbs out.
+ * The tool still checks the real path on the disk (a link out); this is the shape alone.
+ */
+export function workingCopyPath(path) {
+  const slashed = String(path ?? '').replace(/\\/g, '/')
+  const parts = slashed.split('/').filter((part) => part && part !== '.')
+  if (!parts.length || slashed.startsWith('/') || /^[a-z]:$/i.test(parts[0]) || parts.includes('..')) return null
+  return parts.join('/')
 }
 
 export const roundsInOrder = (data) => Object.entries(data.rounds ?? {}).sort(([, a], [, b]) => (a.n ?? 0) - (b.n ?? 0))

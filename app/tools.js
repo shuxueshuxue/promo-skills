@@ -1,8 +1,9 @@
 // 抽卡台's tools for agents (guide apps-programs): every export is one tool, `agent` is stamped by gugu — never asked for.
 // The card table is the file the agent was woken about; what to do with it is the choukatai skill (skills/choukatai).
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { createReadStream, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { answered, feedbackOf, normalizeTable, roundsInOrder, slotOf, statusOf } from './model.js'
+import { answered, feedbackOf, normalizeTable, roundsInOrder, slotOf, statusOf, workingCopyPath } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .chouka.json file the whisper you got is about.' }
@@ -32,6 +33,56 @@ function flushed(f) {
   })
 }
 
+/** A clip handed in with `video`: its original stays in the agent's working copy; the card keeps where, its size and hash. */
+const VIDEO = {
+  type: 'object',
+  required: ['path', 'cover', 'strip'],
+  properties: {
+    path: { type: 'string', description: 'The finished clip in your working copy, relative to it (renders/cut.mp4). It stays there — the card keeps where it is, not a copy.' },
+    cover: { type: 'string', description: 'Item id of one frame of it (a jpg, the frame at 5 s) you put in this chat with workspace_upload_file.' },
+    strip: { type: 'string', description: 'Item id of its keyframes in one picture (8 frames side by side, a jpg), in this chat.' },
+    seconds: { type: 'number' },
+    width: { type: 'number' },
+    height: { type: 'number' },
+  },
+  description: 'A clip whose original stays on your machine: only the cover and the strip go to the chat. Instead of putting the clip itself in files.',
+}
+
+/** The original of a clip, read where the agent works (gugu stamps which session and which working copy — never its word). */
+async function originalOf(video, { session, workspaceRoot }) {
+  if (!session || !workspaceRoot) {
+    throw new Error('this gugu does not tell the tool which session you are in: hand the clip in as a file instead (workspace_upload_file, then files)')
+  }
+  const rel = workingCopyPath(video.path)
+  if (!rel) throw new Error(`video.path is a path inside your working copy, like renders/cut.mp4 — not ${JSON.stringify(video.path)}`)
+  const root = realpathSync(workspaceRoot)
+  let abs
+  try {
+    abs = realpathSync(path.join(root, rel))
+  } catch {
+    throw new Error(`no file ${rel} in your working copy`)
+  }
+  const inside = path.relative(root, abs)
+  if (!inside || inside.startsWith('..') || path.isAbsolute(inside)) throw new Error(`${rel} leads outside your working copy`)
+  const stat = statSync(abs)
+  if (!stat.isFile()) throw new Error(`${rel} is not a file`)
+  const sha256 = await new Promise((resolve, reject) => {
+    const hash = createHash('sha256')
+    createReadStream(abs).on('data', (chunk) => hash.update(chunk)).on('end', () => resolve(hash.digest('hex'))).on('error', reject)
+  })
+  const number = (n) => (Number(n) > 0 ? Number(n) : null)
+  return {
+    cover: String(video.cover),
+    strip: String(video.strip),
+    seconds: number(video.seconds),
+    width: number(video.width),
+    height: number(video.height),
+    bytes: stat.size,
+    sha256,
+    at: { session, path: rel },
+  }
+}
+
 const cardLine = (data, id, card) => ({
   id,
   round: data.rounds[card.round]?.n ?? null,
@@ -47,6 +98,7 @@ const cardLine = (data, id, card) => ({
   // What people (and the agents they asked) already said about it, the latest few: read before you annotate it too.
   notes: feedbackOf(data, id).filter((entry) => entry.verdict === 'note').slice(-5).map((entry) => ({ who: entry.who, comment: entry.comment, at: entry.ts })),
   files: card.files ?? [],
+  ...(card.video ? { video: { cover: card.video.cover, strip: card.video.strip, seconds: card.video.seconds, at: card.video.at } } : {}),
   parents: card.parents ?? [],
 })
 
@@ -108,6 +160,7 @@ export const submit = {
       title: { type: 'string', description: 'A few words the person can pick by. A new version keeps the old title (and text, files) unless you give them again.' },
       text: { type: 'string', description: 'The card itself in markdown: the narrative, the copy, the shot description, what a clip shows.' },
       files: { type: 'array', items: { type: 'string' }, description: 'Item ids of files in this chat (images, clips, audio) that are this card.' },
+      video: VIDEO,
       card: { type: 'string', description: 'Your own card to revise (a new version of it). Someone else\'s card: pass it in parents instead.' },
       parents: { type: 'array', items: { type: 'string' }, description: 'Cards this one mixes or builds on.' },
       model: { type: 'string', description: 'The model you are (shown on the card).' },
@@ -118,8 +171,12 @@ export const submit = {
       },
     },
   },
-  async run(args, { agent }) {
+  async run(args, { agent, session, workspaceRoot }) {
     if (!agent) throw new Error('submit is for agents (gugu stamps who calls)')
+    // Read before the table is opened: a clip that is not there is said before anything is written.
+    const video = args.video ? await originalOf(args.video, { session, workspaceRoot }) : null
+    // A clip already on the card, as plain values (the table's own objects are live).
+    const plainVideo = (v) => (v ? { ...v, at: { ...v.at } } : null)
     const f = await openBoard(args.board)
     try {
       const round = f.data.rounds[args.round]
@@ -134,16 +191,17 @@ export const submit = {
         files: (args.files ?? prev.files ?? []).map(String),
         model: args.model ? String(args.model) : prev.model ?? null,
         cost: { usd: Number(args.cost?.usd) || 0, seconds: Number(args.cost?.seconds) || 0, tokens: Number(args.cost?.tokens) || 0 },
+        ...((video ?? prev.video) ? { video: video ?? plainVideo(prev.video) } : {}),
       }
       if (!fields.title) throw new Error('a card needs a title')
-      if (!fields.text && !fields.files.length) throw new Error('a card needs text or files')
+      if (!fields.text && !fields.files.length && !fields.video) throw new Error('a card needs text, files or a video')
       let id
       if (own) {
         id = own
         const card = f.data.cards[id]
         // The version this one replaces is kept as it was: the history compares them.
         const replaced = card.version ?? 1
-        const versions = { ...(card.versions ?? {}), [replaced]: { title: card.title, text: card.text ?? '', files: card.files ?? [], model: card.model ?? null, cost: card.cost ?? {}, at: card.updatedAt ?? card.at } }
+        const versions = { ...(card.versions ?? {}), [replaced]: { title: card.title, text: card.text ?? '', files: card.files ?? [], ...(card.video ? { video: plainVideo(card.video) } : {}), model: card.model ?? null, cost: card.cost ?? {}, at: card.updatedAt ?? card.at } }
         f.data.cards[id] = { ...fields, round: card.round, slot: card.slot, kind: card.kind, by: agent, parents: card.parents ?? [], version: replaced + 1, versions, at: card.at, updatedAt: at }
       } else {
         id = newId('c')

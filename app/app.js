@@ -9,7 +9,7 @@
 // Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
 // their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, TRACKS, drawHint, eventsOf, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, tracksInOrder } from './model.js'
+import { KINDS, TRACKS, coverOf, drawHint, eventsOf, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, tracksInOrder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -80,6 +80,41 @@ function mediaView(itemId, cls = 'media') {
   if (m.kind === 'audio') return html`<audio data-key="${itemId}" src="${m.url}" controls preload="metadata"></audio>`
   if (m.kind === 'text') return html`<pre data-key="${itemId}">${m.text}</pre>`
   return html`<img class="${cls}" data-key="${itemId}" src="${m.url}" alt="${m.name}" />`
+}
+
+// ─── a clip's original: it stays in the working copy of the session that made it (cards[].video.at), opened on demand ──
+const originals = new Map() // cardId → 'loading' | { url, changed } | { error }
+const hex = (buffer) => [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
+async function loadOriginal(cardId, video) {
+  originals.set(cardId, 'loading')
+  draw()
+  try {
+    const file = await window.gugu.files.open({ session: video.at.session, name: video.at.path }, { readOnly: true })
+    const blob = await file.blob()
+    file.close()
+    const sha = video.sha256 ? hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())) : null
+    originals.set(cardId, { url: URL.createObjectURL(blob), changed: Boolean(sha && sha !== video.sha256) })
+  } catch (error) {
+    const why = error.code === 'file-unavailable'
+      ? `原片在交卡的那台电脑上，它现在连不上（${error.message}）`
+      : error.code === 'not-found'
+        ? `这里读不到原片：它在交卡那条会话的工作区里（${error.message}）`
+        : `原片打不开：${error.message}`
+    originals.set(cardId, { error: why })
+  }
+  draw()
+}
+const megabytes = (bytes) => (bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : '')
+function videoView(cardId, video, open) {
+  const original = originals.get(cardId)
+  const facts = [video.seconds ? `${Math.round(video.seconds * 10) / 10} 秒` : '', video.width && video.height ? `${video.width}×${video.height}` : '', megabytes(video.bytes)].filter(Boolean).join(' · ')
+  return html`<div class="pics">${mediaView(video.cover)}</div>
+    ${open && video.strip ? html`<div class="strip">${mediaView(video.strip)}</div>` : ''}
+    ${original?.url ? html`<video class="media" data-key="original:${cardId}" src="${original.url}" controls playsinline preload="metadata"></video>` : ''}
+    ${original?.changed ? html`<small class="muted" role="alert">原片在交卡之后改过了（和卡上记的不是同一份）。</small>` : ''}
+    ${original?.error ? html`<small class="muted" role="alert">${original.error}</small>` : ''}
+    <small class="muted">原片${facts ? ` ${facts}` : ''}，留在交卡的电脑上，云端只有封面和缩略条。</small>
+    ${original?.url ? '' : html`<button class="sm" data-act="original" data-card="${cardId}" ${original === 'loading' ? 'disabled' : ''}>${original === 'loading' ? '正在取原片…' : '播放原片'}</button>`}`
 }
 
 // ─── the header: the file's name, the brief (typed in together), 开一轮, settings ──────────────────────────────────
@@ -303,6 +338,7 @@ document.addEventListener('click', (event) => {
   else if (act === 'history') { histories.has(card) ? histories.delete(card) : histories.add(card); draw() }
   else if (act === 'first-round') $('#open-round').click()
   else if (act === 'ask') { askOpen = !askOpen; draw() }
+  else if (act === 'original') { const video = f.data.cards[card]?.video; if (video) loadOriginal(card, { ...video, at: { ...video.at } }) }
 })
 
 function spineView(data) {
@@ -315,7 +351,7 @@ function spineView(data) {
     const pick = pickOfRound(data, id)
     const card = pick ? data.cards[pick] : null
     const dot = card
-      ? (card.files?.length ? html`<span class="dot">${mediaView(card.files[0], 'dot-media')}</span>` : html`<span class="dot chosen"></span>`)
+      ? (coverOf(card) ? html`<span class="dot">${mediaView(coverOf(card), 'dot-media')}</span>` : html`<span class="dot chosen"></span>`)
       : html`<span class="dot empty"></span>`
     const cards = Object.entries(data.cards).filter(([, c]) => c.round === id)
     return html`<button class="node ${round.track === trunk ? '' : 'branch'} ${lineStart ? 'line-start' : ''}" data-line="${round.track}" data-key="${id}" data-act="stage" data-round="${id}" aria-current="${id === openRound ? 'step' : 'false'}">
@@ -346,11 +382,12 @@ function cardView(data, id, card, pick) {
   const cost = [money(card.cost?.usd), seconds(card.cost?.seconds)].filter(Boolean).join(' · ')
   const files = card.files ?? []
   return html`<article class="card chouka-card ${isPicked ? 'picked' : ''}" data-key="${id}">
+    ${card.video ? videoView(id, card.video, opened.has(id)) : ''}
     ${files.length ? html`<div class="pics">${(opened.has(id) ? files : files.slice(0, 1)).map((itemId) => mediaView(itemId))}${!opened.has(id) && files.length > 1 ? html`<small class="more">+${files.length - 1}</small>` : ''}</div>` : ''}
     <strong>${card.title}${(card.version ?? 1) > 1 ? html` <small class="muted">v${card.version}</small>` : ''}</strong>
     <small class="muted"><gugu-avatar user="${card.by}" size="xs"></gugu-avatar> ${nameOf(card.by)}${card.model ? ` · ${card.model}` : ''}${cost ? ` · ${cost}` : ''}</small>
     ${card.text ? html`<div class="text ${opened.has(id) ? 'open' : ''}" data-md="${id}"></div>` : ''}
-    ${(card.text && card.text.length > 160) || files.length > 1 ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
+    ${(card.text && card.text.length > 160) || files.length > 1 || card.video?.strip ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
     <button class="marks-btn" data-act="history" data-card="${id}" aria-expanded="${histories.has(id)}" aria-label="经过">${marks(events)}</button>
     ${histories.has(id) ? historyView(data, id) : ''}
     <div class="row">
