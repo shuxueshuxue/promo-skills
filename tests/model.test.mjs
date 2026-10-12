@@ -1,7 +1,8 @@
 // 片场 model: the table made whole on open, and a card's history. Run: node --test tests/*.mjs
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { answered, checkLine, eventsOf, feedbackOf, normalizeTable, pickOfRound, sentBack, statusOf, tracksInOrder } from '../app/model.js'
+import { readFileSync } from 'node:fs'
+import { answered, cardClass, checkLine, eventsOf, feedbackOf, normalizeTable, pickOfRound, sentBack, statusOf, tracksInOrder } from '../app/model.js'
 
 /** A table as 0.2.0 wrote it: rounds without a line, a card revised before versions were kept. */
 const before030 = () => ({
@@ -158,4 +159,13 @@ test('a clip\'s check as one line on its card: loudness, the longest silence, bl
     checkLine({ lufs: -18, silence: { seconds: 0.1, at: 3 }, black: [[0, 1.5], [10, 10.5]], white: [] }),
     '响度 -18 LUFS · 黑屏 2 秒（0 秒、10 秒处）',
   )
+})
+
+test('a picked card carries studio-card and picked as two classes, the ones style.css outlines it by (review 3540e51)', () => {
+  assert.deepEqual(cardClass(false).split(' '), ['card', 'studio-card'])
+  assert.deepEqual(cardClass(true).split(' '), ['card', 'studio-card', 'picked'])
+  const css = readFileSync(new URL('../app/style.css', import.meta.url), 'utf8')
+  assert.match(css, /\.studio-card\.picked\s*\{/)
+  // The page draws a card with these classes, not a string of its own.
+  assert.match(readFileSync(new URL('../app/app.js', import.meta.url), 'utf8'), /<article class="\$\{cardClass\(isPicked\)\}"/)
 })

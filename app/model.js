@@ -177,6 +177,9 @@ export function checkLine(check) {
   ].filter(Boolean).join(' · ')
 }
 
+/** A card's classes on the page: style.css styles .studio-card, and .studio-card.picked outlines the picked one. */
+export const cardClass = (picked) => ['card', 'studio-card', ...(picked ? ['picked'] : [])].join(' ')
+
 export const coverOf = (card) => card?.video?.cover ?? card?.files?.[0] ?? null
 
 /**
