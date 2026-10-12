@@ -126,6 +126,36 @@ export async function costOf(key, generation, { deadline = Date.now() + 20_000, 
   return null
 }
 
+/**
+ * The purchases a table's spend still waits on (entry.pending: generation ids) priced now, against one deadline; what is
+ * found is added where it is owed. true when anything changed. Two calls can catch up on one table at once (one copy of
+ * the file in a program): each entry is read again after the wait and only what is still pending is added — a purchase
+ * the other call priced meanwhile is neither counted twice nor in the way of the rest (review r3: this held only through
+ * a TypeError the caller swallowed, which also dropped the entries after it).
+ */
+export async function catchUp(spend, key, deadline) {
+  const owed = Object.values(spend ?? {}).filter((entry) => entry.pending?.length)
+  if (!owed.length) return false
+  const prices = new Map(await Promise.all(owed.flatMap((entry) => entry.pending).map(async (generation) => [generation, await costOf(key, generation, { deadline })])))
+  let changed = false
+  for (const entry of owed) {
+    const still = entry.pending ?? []
+    const found = still.filter((generation) => typeof prices.get(generation) === 'number')
+    if (!found.length) continue
+    changed = true
+    entry.usd = (entry.usd ?? 0) + found.reduce((sum, generation) => sum + prices.get(generation), 0)
+    const left = still.filter((generation) => !found.includes(generation))
+    if (left.length) {
+      entry.pending = left
+      entry.unpriced = left.length
+    } else {
+      delete entry.pending
+      delete entry.unpriced
+    }
+  }
+  return changed
+}
+
 /** A file's length in seconds, as ffprobe reads it. */
 export async function secondsOf(tools, file) {
   const { stdout } = await step('reading a spoken line', tools.ffprobe, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], CLOCKS.probe)

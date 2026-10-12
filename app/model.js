@@ -257,6 +257,9 @@ export function marksWords(events, picked) {
   ].filter(Boolean).join(' · ')
 }
 
+/** Whom the person's pick or skip wakes: the lead — none while the person has taken the table over, none without one. */
+export const leadToWake = (data) => (data.lead && !data.paused ? data.lead : null)
+
 /** Who leads, as the lead's row names it: 组长 and its name — once, when the name says it already (trial 10-12: 组长 组长). */
 export const leadLabel = (name) => (String(name).includes('组长') ? String(name) : `组长 ${name}`)
 

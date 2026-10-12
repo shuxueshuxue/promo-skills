@@ -204,6 +204,17 @@ test('a card\'s history in words beside its marks; the lead named once; escaped 
   assert.doesNotMatch(page, /const money = /)
 })
 
+test('the person\'s pick or skip wakes the lead — not while the person has the table, not when there is none (review r3, W1)', async () => {
+  const { leadToWake } = await import('../app/model.js')
+  assert.equal(leadToWake({ lead: 'user:l' }), 'user:l')
+  assert.equal(leadToWake({ lead: 'user:l', paused: true }), null)
+  assert.equal(leadToWake({}), null)
+  // The page's pick and skip wake through it, and only through it.
+  const page = readFileSync(new URL('../app/app.js', import.meta.url), 'utf8')
+  assert.match(page, /function wakeLead\(text\) \{\s*const lead = leadToWake\(f\.data\)\s*if \(lead\) tell\(lead, text\)/)
+  assert.equal((page.match(/tell\(f\.data\.lead/g) ?? []).length, 1) // the hand-back, which wakes it on purpose
+})
+
 test('each writer has a folder of its own for a table: two writers sharing a working copy never write one file (trial 10-12)', async () => {
   const { writerFolder } = await import('../app/model.js')
   assert.equal(writerFolder('一笔 · 15 秒.studio.json', 'user:383737d7-b72f-44c2-9637-e2c747969003'), 'studio/一笔 · 15 秒/383737d7')

@@ -10,7 +10,7 @@ import path from 'node:path'
 import { after, test } from 'node:test'
 import { checkClip, ffmpegTools } from '../app/clip.js'
 import { spendOf } from '../app/model.js'
-import { costOf, linesOf, overrunMessage, overruns, speak, spokenLength, voiceOf } from '../app/voice.js'
+import { catchUp, costOf, linesOf, overrunMessage, overruns, speak, spokenLength, voiceOf } from '../app/voice.js'
 
 test('what takes time to say: letters, digits and Han characters — not spaces or punctuation', () => {
   assert.equal(spokenLength('在咕咕，开工就是一句话。'), 10)
@@ -65,11 +65,14 @@ test('a purchase\'s price: waited for (its record comes seconds later), the upst
   }
 })
 
-test('a price lookup that never answers costs its clock, not the call: not priced, said in time (review d00ad0e)', async () => {
+// A clock-less lookup hangs here, and the test's own timeout fails it (review r3, P3: the stand-in threw at once without a
+// signal, which read as giving up in time).
+test('a price lookup that never answers costs its clock, not the call: not priced, said in time (review d00ad0e)', { timeout: 5000 }, async () => {
   const saved = globalThis.fetch
   try {
-    // A service that holds every request open until it is given up on.
-    globalThis.fetch = (_url, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)))
+    // A service that holds every request open until it is given up on — forever, when nothing gives up on it.
+    const hang = (init) => new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal.reason)))
+    globalThis.fetch = (_url, init) => hang(init)
     let started = Date.now()
     assert.equal(await costOf('k', 'gen-hang', { deadline: Date.now() + 300, each: 5000, wait: 1 }), null)
     assert.ok(Date.now() - started < 1500, `${Date.now() - started} ms past a 300 ms deadline`)
@@ -78,12 +81,56 @@ test('a price lookup that never answers costs its clock, not the call: not price
     globalThis.fetch = (_url, init) => {
       asks += 1
       return asks === 1
-        ? new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)))
+        ? hang(init)
         : Promise.resolve(new Response(JSON.stringify({ data: { total_cost: 0.003 } }), { status: 200 }))
     }
     started = Date.now()
     assert.equal(await costOf('k', 'gen-slow', { deadline: Date.now() + 5000, each: 200, wait: 1 }), 0.003)
     assert.ok(Date.now() - started < 1500, `${Date.now() - started} ms`)
+  } finally {
+    globalThis.fetch = saved
+  }
+})
+
+test('two catch-ups on one table at once: what the other priced meanwhile is not added again, and does not stop the rest (review r3)', async () => {
+  const saved = globalThis.fetch
+  try {
+    const spend = {
+      s1: { tool: 'voice', usd: 0, unpriced: 1, pending: ['g1'] },
+      s2: { tool: 'image', usd: 0.03, unpriced: 1, pending: ['g2'] },
+    }
+    const price = { g1: 0.001, g2: 0.002 }
+    const answer = (url) => new Response(JSON.stringify({ data: { total_cost: price[new URL(url).searchParams.get('id')] } }), { status: 200 })
+    // The first call's lookups wait at a gate; the second's are answered at once.
+    let open
+    const gate = new Promise((resolve) => { open = resolve })
+    let asks = 0
+    globalThis.fetch = async (url) => (++asks <= 2 ? gate.then(() => answer(url)) : answer(url))
+    const first = catchUp(spend, 'k', Date.now() + 5000)
+    // The second runs whole while the first waits: it prices both.
+    assert.equal(await catchUp(spend, 'k', Date.now() + 5000), true)
+    assert.deepEqual([spend.s1.pending, spend.s2.pending], [undefined, undefined])
+    open()
+    // The first finds nothing left to add — no error, nothing counted twice.
+    assert.equal(await first, false)
+    near(spend.s1.usd, 0.001)
+    near(spend.s2.usd, 0.032)
+    // One entry priced meanwhile, another still owed: the first one's wait ends with the other added.
+    const half = { s1: { tool: 'voice', usd: 0, unpriced: 1, pending: ['g1'] }, s2: { tool: 'image', usd: 0, unpriced: 1, pending: ['g2'] } }
+    let release
+    const later = new Promise((resolve) => { release = resolve })
+    asks = 0
+    globalThis.fetch = async (url) => (++asks <= 2 ? later.then(() => answer(url)) : answer(url))
+    const slow = catchUp(half, 'k', Date.now() + 5000)
+    // Someone else prices only s1 (s2's record not there for them).
+    globalThis.fetch = async (url) => (url.includes('g2') ? new Response('{}', { status: 404 }) : answer(url))
+    await catchUp({ s1: half.s1 }, 'k', Date.now() + 50)
+    assert.equal(half.s1.pending, undefined)
+    release()
+    assert.equal(await slow, true)
+    near(half.s1.usd, 0.001)
+    near(half.s2.usd, 0.002)
+    assert.equal(half.s2.pending, undefined)
   } finally {
     globalThis.fetch = saved
   }

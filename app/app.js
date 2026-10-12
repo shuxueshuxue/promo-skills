@@ -9,7 +9,7 @@
 // Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
 // their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, leadLabel, limitsOf, marksWords, money, roundCall, waitingRound, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, spendOf, tracksInOrder, withBreaks } from './model.js'
+import { KINDS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, leadLabel, leadToWake, limitsOf, marksWords, money, roundCall, waitingRound, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, spendOf, tracksInOrder, withBreaks } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -315,7 +315,8 @@ $('#r-start').onclick = async () => {
 
 // ─── the lead: woken when the person picks or skips (the next round is its to open), paused and handed back ──────
 function wakeLead(text) {
-  if (f.data.lead && !f.data.paused) tell(f.data.lead, text)
+  const lead = leadToWake(f.data)
+  if (lead) tell(lead, text)
 }
 function picked(cardId) {
   const card = f.data.cards[cardId]

@@ -5,7 +5,7 @@ import { createReadStream, mkdirSync, mkdtempSync, readFileSync, realpathSync, r
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MAX_SECONDS, checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
-import { PRICING, costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
+import { PRICING, catchUp, costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
 import { KINDS, addRound, answered, feedbackOf, limitsOf, normalizeTable, picksSoFar, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, VOICE_MODEL, parseSettings } from './settings.js'
 
@@ -168,26 +168,7 @@ async function recordSpend(board, entry) {
 async function catchUpSpend(board, key) {
   const f = await openBoard(board)
   try {
-    const owed = Object.values(f.data.spend ?? {}).filter((entry) => entry.pending?.length)
-    if (!owed.length) return
-    const deadline = Date.now() + PRICING.catchUp
-    const prices = new Map(await Promise.all(owed.flatMap((entry) => entry.pending).map(async (generation) => [generation, await costOf(key, generation, { deadline })])))
-    let changed = false
-    for (const entry of owed) {
-      const found = entry.pending.filter((generation) => typeof prices.get(generation) === 'number')
-      if (!found.length) continue
-      changed = true
-      entry.usd = (entry.usd ?? 0) + found.reduce((sum, generation) => sum + prices.get(generation), 0)
-      const left = entry.pending.filter((generation) => !found.includes(generation))
-      if (left.length) {
-        entry.pending = left
-        entry.unpriced = left.length
-      } else {
-        delete entry.pending
-        delete entry.unpriced
-      }
-    }
-    if (changed) await flushed(f)
+    if (await catchUp(f.data.spend, key, Date.now() + PRICING.catchUp)) await flushed(f)
   } finally {
     f.close()
   }
