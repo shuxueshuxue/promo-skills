@@ -1,4 +1,21 @@
-# promo-skills
+# 片场 · Studio
+
+**在咕咕群里做片子：人说一句话，组长 agent 开一轮轮卡桌，几个不同模型的写手各交一版，人只管挑。**
+
+1. 在群里跟组长说一句，比如「做条 15 秒的片子，介绍我们的记账小程序……分三轮：先出讲法，再挑声音，最后剪整片」。
+2. 组长用片场开一张卡桌，排好几轮，每轮叫几个写手各交几张卡：讲法、文案、分镜、配音小样、整片……
+3. 人在卡桌上看卡，可以批注、「选这张」或者打回。选中的卡会作为下一轮的参考。人也可以跳过一轮、暂停组长，或者自己开一轮。
+4. 计划走完，组长在群里说一句片子做好了。
+
+写手交片时，片场会先替人检查一遍：时长（不超过 10 分钟）、响度、最长无声、有没有黑屏或白屏。封面和缩略条由片场自动做。原片留在交卡的那台电脑上，卡桌上点一下就能播。
+
+出图和配音用的是人在片场设置里填的 OpenRouter key，每一笔花费都记在卡桌上，顶上有合计。每张卡桌最多 8 轮，每轮最多 4 个写手，卡桌设置里可以改。交片的电脑上要有 ffmpeg。
+
+片场要的权限：读写人所在的群和这台电脑上的会话里的文件（存卡桌，放封面、缩略条和配音），以 App 的名义给写手发悄悄话（叫他们交卡），以及给 agent 提供工具。
+
+---
+
+## promo-video：拍真产品的宣传片 skill
 
 **A Claude Code / agent skill for making a real product launch video — by filming the
 product's own running UI, not by rebuilding it in motion graphics.**
@@ -8,7 +25,7 @@ shot end-to-end (the night before a demo day) by an agent driving the actual app
 rule in [`director-rulings.md`](skills/promo-video/references/director-rulings.md) was earned by a
 real reviewer rejection.
 
-## The idea in one line
+### The idea in one line
 
 > The footage is the real product, running. Everything cinematic — push-ins, cuts,
 > captions, voiceover, music — is added in post as deterministic render-time data, so any
@@ -22,7 +39,7 @@ Three tools, fused:
 | **Remotion** | render engine — React *is* the video (frame-driven, deterministic, re-renderable); "variants" are just different props |
 | **HyperFrames' knowledge structure** | the vocabulary of shooting techniques + the storyboard-then-approve-gate review loop |
 
-## Two ways to use it — one skill folder
+### Two ways to use it — one skill folder
 
 The skill is [`skills/promo-video/`](skills/promo-video/) (SKILL.md + references + toolkit + the worked example).
 Nothing is copied between the two uses:
@@ -32,7 +49,7 @@ Nothing is copied between the two uses:
   `contributes.skills: "skills"`, so every agent session on a computer that has the App gets this same skill, and the
   App's card table replaces the LAN review board.
 
-## Quickstart
+### Quickstart
 
 1. **Read [`SKILL.md`](skills/promo-video/SKILL.md).** It is the workflow, top to bottom. Then keep
    [`director-rulings.md`](skills/promo-video/references/director-rulings.md) open while you work.
@@ -55,7 +72,7 @@ Nothing is copied between the two uses:
 10. QA           blackdetect blank-scan + VO↔picture alignment
 ```
 
-## Layout
+### Layout
 
 ```
 skills/promo-video/            the skill — one copy, read by Claude Code and by the gugu App
@@ -79,13 +96,13 @@ skills/promo-video/            the skill — one copy, read by Claude Code and b
     gugu-case-study.md         the real run, end to end, as a worked example
 ```
 
-## What this is *not*
+### What this is *not*
 
 - Not a motion-graphics or talking-head generator — its first-class footage is a real product.
 - Not turnkey. The capture harness and the intro/CTA scenes are yours to adapt; the pipeline,
   the camera/edit/assembly mechanism, the review loop and the QA gate are reusable as-is.
 
-## Credits & lineage
+### Credits & lineage
 
 Built by fusing three open efforts — [Remotion](https://www.remotion.dev/docs/ai/skills),
 [GSAP skills](https://github.com/greensock/gsap-skills), and HeyGen's
