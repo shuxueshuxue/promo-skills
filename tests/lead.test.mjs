@@ -10,7 +10,7 @@ const [A, B, C, D, E] = ['user:a', 'user:b', 'user:c', 'user:d', 'user:e']
 
 /** The chat as the program sees it: one table file it creates and opens, and the whispers it sends. */
 function chat({ failSendTo = [] } = {}) {
-  const state = { data: null, created: [], sent: [] }
+  const state = { data: null, created: [], sent: [], opened: [] }
   globalThis.gugu = {
     files: {
       create: async (target, content) => {
@@ -18,7 +18,9 @@ function chat({ failSendTo = [] } = {}) {
         state.data = structuredClone(content)
         return { id: 'item-table', chat: target.chat, name: target.name }
       },
-      open: async ({ id }) => {
+      open: async (ref) => {
+        state.opened.push(ref)
+        const { id } = ref
         assert.equal(id, 'item-table')
         const data = state.data
         return { data, toJSON: () => structuredClone(data), transact: (fn) => fn(), saved: true, onStatus() {}, close() {}, entry: { id, chat: 'chat-1', name: 't.studio.json' } }
@@ -43,6 +45,8 @@ test('the first call makes the table in the chat with the caller as its lead, op
   const state = chat()
   const answer = await open_round.run(first, { agent: LEAD })
   assert.deepEqual(state.created, [{ chat: 'chat-1', name: '咕咕 30 秒.studio.json' }])
+  // Opened where it was made, as the lead — not by a bare id, which opens as the person (review r4).
+  assert.deepEqual(state.opened, [{ chat: 'chat-1', id: 'item-table' }])
   assert.equal(state.data.lead, LEAD)
   assert.deepEqual(state.data.brief, { $text: '给咕咕做条 30 秒的片子' })
   assert.deepEqual([answer.board, answer.n, answer.told], ['item-table', 1, [A, B]])
@@ -137,6 +141,37 @@ test('the chat of the first call is a gugu-chat: gugu hands it over as the calle
   const { properties } = open_round.inputSchema
   assert.equal(properties.chat.format, 'gugu-chat')
   assert.equal(properties.board.format, 'gugu-file')
+})
+
+test('a chat that is not a string is refused before anything is made — a number is not handed over by every gugu (review r4)', async () => {
+  const state = chat()
+  await assert.rejects(open_round.run({ ...first, chat: 211386 }, { agent: LEAD }), /chat: this chat's id or its number, as a string/)
+  await assert.rejects(open_round.run({ ...first, chat: { id: 'chat-1' } }, { agent: LEAD }), /as a string/)
+  assert.deepEqual([state.created.length, state.sent.length], [0, 0])
+})
+
+test('the plan after a round: as given (slots trimmed, even when it names this round); else the first step that is this round leaves it, wherever it is (review r4)', async () => {
+  const { planAfter } = await import('../app/model.js')
+  const of = (plan) => plan.map((s) => `${s.kind}·${s.slot}`)
+  const plan = [{ kind: '分镜', slot: '开头' }, { kind: '整片', slot: '整片' }]
+  // Q3: a plan given is kept as given, this round in it or not.
+  assert.deepEqual(of(planAfter(plan, [{ kind: '分镜', slot: '开头' }, { kind: '整片', slot: ' 整片 ' }], '分镜', '开头')), ['分镜·开头', '整片·整片'])
+  assert.deepEqual(planAfter(plan, [], '分镜', '开头'), [])
+  // Opened out of order: 整片 leaves, 开头 stays.
+  assert.deepEqual(of(planAfter(plan, undefined, '整片', '整片')), ['分镜·开头'])
+  // A planned slot written with spaces is the same step.
+  assert.deepEqual(of(planAfter([{ kind: '分镜', slot: ' 开头 ' }, { kind: '整片', slot: '整片' }], undefined, '分镜', '开头')), ['整片·整片'])
+  // No slot on either side: the kind is the slot.
+  assert.deepEqual(of(planAfter([{ kind: '分镜' }, { kind: '整片' }], undefined, '分镜', '分镜')), ['整片·整片'])
+  // A round outside the plan leaves it as it was.
+  assert.deepEqual(of(planAfter(plan, undefined, '分镜', '加一轮')), ['分镜·开头', '整片·整片'])
+  // Through open_round: a plan given whose first step is this very round stays as given.
+  const state = chat()
+  const one = await open_round.run({ ...first, plan: [] }, { agent: LEAD })
+  hand(state, 'c1', one.round)
+  pick(state, 'c1')
+  const two = await open_round.run({ board: 'item-table', round: { kind: '分镜', slot: '开头', agents: [A] }, plan }, { agent: LEAD })
+  assert.deepEqual(of(two.plan), ['分镜·开头', '整片·整片'])
 })
 
 test('rounds are numbered in the order they are put on the table, whoever opens them', () => {

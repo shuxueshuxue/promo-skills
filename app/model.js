@@ -192,7 +192,21 @@ export function addRound(data, { id, track, kind, slot, ask, each, agents, refs 
 }
 
 /** The picked card of every round so far: what a new round builds on unless it names its own. */
-export const picksSoFar = (data) => roundsInOrder(data).map(([id]) => pickOfRound(data, id)).filter(Boolean)
+/**
+ * The lead's plan once it opens a round of this kind and slot. A plan given with the round is the rounds after it, kept
+ * as given (slots trimmed). Without one, the first planned step that is this round — by kind and slot, wherever it is
+ * in the plan (a round opened out of order) — leaves it; a round outside the plan leaves the plan as it was (review r3,
+ * r4).
+ */
+export function planAfter(plan, given, kind, slot) {
+  const step = (s) => ({ kind: String(s.kind), slot: String(s.slot ?? '').trim() || String(s.kind), ...(s.track ? { track: String(s.track) } : {}) })
+  if (given) return given.map(step)
+  const steps = (Array.isArray(plan) ? plan : []).map(step)
+  const at = steps.findIndex((s) => s.kind === kind && s.slot === slot)
+  return at < 0 ? steps : steps.filter((_, i) => i !== at)
+}
+
+export const picksSoFar =(data) => roundsInOrder(data).map(([id]) => pickOfRound(data, id)).filter(Boolean)
 
 /** The first round the person has neither picked from nor skipped: what a lead waits for before the next one. */
 export function waitingRound(data) {

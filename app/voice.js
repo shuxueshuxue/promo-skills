@@ -185,19 +185,35 @@ export function duckExpression(spans, under) {
   return `1-${(1 - g).toFixed(4)}*${depth}`
 }
 
+/** The whole voiced film may be no louder than this (integrated), and its true peak no higher than this (dBTP). */
+export const MAX_LUFS = -14
+export const MAX_TRUE_PEAK = -1
+
 /**
- * The film with its narration: every line at its start on one mono track brought to TARGET_LUFS (measured alone). A film
- * with a sound of its own (`original`: its loudness) keeps it: brought down to BED_LUFS when it is louder (never up), and
- * while a line is spoken DUCK_UNDER dB under the narration — never cut out between the lines; a film without one gets
- * the narration alone. The whole is measured once written and corrected once with one gain for both (a small one: the
- * sound under it is at most BED_LUFS), and a limiter keeps the peaks. The picture is copied, not re-encoded.
+ * The one gain the whole film gets once written, in dB: only ever down — when it is louder than MAX_LUFS or its true
+ * peak is over MAX_TRUE_PEAK — else none. The narration is the fixed point (148, review r4: raising the whole to -16
+ * raised the narration with it, 6 dB on a 10-minute film with little said).
+ */
+export function turnDown({ lufs, peak }) {
+  const byLoudness = typeof lufs === 'number' && lufs > MAX_LUFS ? MAX_LUFS - lufs : 0
+  const byPeak = typeof peak === 'number' && peak > MAX_TRUE_PEAK ? MAX_TRUE_PEAK - peak : 0
+  return Math.min(0, byLoudness, byPeak)
+}
+
+/**
+ * The film with its narration: every line at its start on one mono track at TARGET_LUFS (measured alone) — where it
+ * stays. A film with a sound of its own (`original`: its loudness) keeps it: brought down to BED_LUFS when it is louder
+ * (never up), and while a line is spoken DUCK_UNDER dB under the narration — never cut out between the lines; a film
+ * without one gets the narration alone. The whole is measured once written and turned down only when it is over
+ * MAX_LUFS or MAX_TRUE_PEAK (turnDown), never up: a film with little narration comes out quieter than -16 LUFS, as it
+ * should. A limiter keeps the peaks. The picture is copied, not re-encoded.
  */
 export async function layNarration({ tools, film, lines, seconds, out, original = null }) {
   const inputs = lines.flatMap((line) => ['-i', line.file])
   const delays = lines.map((line, i) => `[${i + 1}:a]aresample=48000,aformat=channel_layouts=mono,adelay=delays=${Math.round(line.at * 1000)}:all=1[a${i + 1}]`)
   const mix = `${delays.join(';')};${lines.map((_, i) => `[a${i + 1}]`).join('')}amix=inputs=${lines.length}:normalize=0:dropout_transition=0,apad,atrim=0:${seconds},aformat=channel_layouts=stereo`
-  const loudness = async (name, args) => parseLoudness((await step(name, tools.ffmpeg, ['-hide_banner', '-nostdin', ...args], CLOCKS.pass)).stderr).lufs
-  const raw = await loudness('measuring the narration', ['-i', film, ...inputs, '-filter_complex', `${mix},ebur128`, '-f', 'null', '-'])
+  const loudness = async (name, args) => parseLoudness((await step(name, tools.ffmpeg, ['-hide_banner', '-nostdin', ...args], CLOCKS.pass)).stderr)
+  const raw = (await loudness('measuring the narration', ['-i', film, ...inputs, '-filter_complex', `${mix},ebur128`, '-f', 'null', '-'])).lufs
   if (raw === null) throw new Error('the narration came out silent — try again')
   const narration = TARGET_LUFS - raw
   // The film's own sound: down to BED_LUFS when louder; then, under a spoken line, DUCK_UNDER dB under the narration —
@@ -214,13 +230,9 @@ export async function layNarration({ tools, film, lines, seconds, out, original 
     step('laying the narration on the film', tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-i', film, ...inputs,
       '-filter_complex', graph(all),
       '-map', '0:v', '-c:v', 'copy', '-map', '[out]', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', out], CLOCKS.pass)
-  let all = 0
-  await write(all)
-  const written = await loudness('measuring the voiced film', ['-i', out, '-vn', '-af', 'ebur128', '-f', 'null', '-'])
-  if (written !== null && Math.abs(written - TARGET_LUFS) > 0.3) {
-    all += TARGET_LUFS - written
-    await write(all)
-  }
+  await write(0)
+  const down = turnDown(await loudness('measuring the voiced film', ['-i', out, '-vn', '-af', 'ebur128=peak=true', '-f', 'null', '-']))
+  if (down < 0) await write(down)
   return out
 }
 

@@ -97,9 +97,10 @@ open them; the writers hand in cards; the person picks and rejects. You hand in 
      after you hand it in — a new cut is a new version of the card;
    - narration: cut the picture first, then `voice` with `film` (its path in your working copy) and `lines` — each
      `{ text, at }`, `at` the second the line starts, in the order spoken. It speaks every line in the table's voice,
-     lays them on one track over the film's own sound — its music and effects stay, brought down to -24 LUFS when
-     louder (never up) and some 15 dB under the narration while a line is spoken; a silent film gets the narration
-     alone; the whole film comes out at -16 LUFS — and answers `<film>.voiced.mp4` next to it: hand that
+     lays them on one track at -16 LUFS over the film's own sound — its music and effects stay, brought down to
+     -24 LUFS when louder (never up) and some 15 dB under the narration while a line is spoken; a silent film gets the
+     narration alone. The narration stays at -16: the whole is only ever turned down (when over -14 LUFS or -1 dBTP), so
+     a film with little said comes out quieter. It answers `<film>.voiced.mp4` in your folder: hand that
      in with `video`. A line that runs into the next is refused with how much it is over and about how many characters
      fit — shorten it to that, or move the next line later, and call `voice` again (lines already spoken are not paid
      for twice). There is no placeholder voice: without the person's key, ask them for it in one line;

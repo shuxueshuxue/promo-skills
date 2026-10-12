@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MAX_SECONDS, checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
 import { PRICING, catchUp, costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
-import { KINDS, addRound, answered, feedbackOf, limitsOf, normalizeTable, picksSoFar, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
+import { KINDS, addRound, answered, feedbackOf, limitsOf, normalizeTable, picksSoFar, planAfter, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, VOICE_MODEL, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .studio.json file the whisper you got is about.' }
@@ -14,12 +14,26 @@ const now = () => new Date().toISOString()
 const newId = (prefix) => `${prefix}${crypto.randomUUID().slice(0, 8)}`
 const short = (text, n = 280) => (text && text.length > n ? `${text.slice(0, n)}…` : text ?? '')
 
+/**
+ * A table, opened as the caller: by its id when it was handed over (a gugu-file), or as { chat, id } in the chat that
+ * was (the first call of open_round): a bare id gugu did not hand over opens as the person, who may not be in the chat.
+ */
 async function openBoard(board) {
-  const f = await gugu.files.open({ id: board })
+  const f = await gugu.files.open(typeof board === 'string' ? { id: board } : board)
   // The same once-only fill the page does (model.js normalizeTable): a table from before 0.3.0 gets its lines, whoever
   // opens it first.
   if (normalizeTable(structuredClone(f.toJSON()))) f.transact(() => normalizeTable(f.data))
   return f
+}
+
+/** The caller's own folder for a table, in its working copy (board's yourFolder): what the App writes for it goes there. */
+async function folderOf(board, agent, root) {
+  const table = await openBoard(board)
+  try {
+    return path.join(root, ...writerFolder(table.entry?.name, agent).split('/'))
+  } finally {
+    table.close()
+  }
 }
 
 /** Written through before the call answers: an agent that reads the table next must find its own card there. */
@@ -455,7 +469,7 @@ export const image = {
 
 export const voice = {
   description:
-    'Voice a film\'s narration, or voice samples to pick a voice from, with the voice model the person set up on the card table (OpenRouter, their key). A film: give the film in your working copy and its lines, each with the second it starts at; every line is spoken and laid at its start on one track over the film\'s own sound — kept: brought down to -24 LUFS when it is louder (never up), and some 15 dB under the narration while a line is spoken; a silent film gets the narration alone; the whole film then at -16 LUFS (the picture is not touched) → <film>.voiced.mp4 next to it, which you hand in with submit → video. A line that runs into the next one is refused, saying by how much and about how many characters fit; a line already spoken the same way is not paid for again. Samples: give one line and several voices → one mp3 per voice, in your folder for this table (board\'s yourFolder); hand each in as its own card with submit → audio. What it paid is added to the table\'s total.',
+    'Voice a film\'s narration, or voice samples to pick a voice from, with the voice model the person set up on the card table (OpenRouter, their key). A film: give the film in your working copy and its lines, each with the second it starts at; every line is spoken and laid at its start on one track at -16 LUFS over the film\'s own sound — kept: brought down to -24 LUFS when it is louder (never up), and some 15 dB under the narration while a line is spoken; a silent film gets the narration alone; the whole is only turned down, when it is over -14 LUFS or -1 dBTP (the picture is not touched) → <film>.voiced.mp4 in your folder for this table (board\'s yourFolder), which you hand in with submit → video. A line that runs into the next one is refused, saying by how much and about how many characters fit; a line already spoken the same way is not paid for again. Samples: give one line and several voices → one mp3 per voice, in your folder for this table (board\'s yourFolder); hand each in as its own card with submit → audio. What it paid is added to the table\'s total.',
   inputSchema: {
     type: 'object',
     required: ['board'],
@@ -509,10 +523,7 @@ export const voice = {
         if (!text) throw new Error('sample: the line to say in each voice')
         const root = workingCopyRoot({ session, workspaceRoot })
         // In this writer's own folder for the table (board's yourFolder): two writers sampling eve are two files.
-        const table = await openBoard(args.board)
-        const folder = writerFolder(table.entry?.name, agent)
-        table.close()
-        const dir = path.join(root, ...folder.split('/'), 'voice-samples')
+        const dir = path.join(await folderOf(args.board, agent, root), 'voice-samples')
         mkdirSync(dir, { recursive: true })
         const samples = []
         for (const name of args.voices?.length ? args.voices.map((v) => voiceOf(settings, v)) : VOICES) {
@@ -535,7 +546,11 @@ export const voice = {
       }
       const problems = overruns(lines, filmSeconds)
       if (problems.length) throw new Error(`The narration does not fit the film: ${overrunMessage(problems)}. Lines already spoken are kept: a retry pays only for what changed.`)
-      const out = path.join(path.dirname(film.abs), `${path.basename(film.rel, path.extname(film.rel))}.voiced.mp4`)
+      // Into the caller's own folder, whoever's film it voices (review r4: next to the film, a writer voicing another's
+      // cut wrote over that writer's .voiced.mp4).
+      const folder = await folderOf(args.board, agent, film.root)
+      mkdirSync(folder, { recursive: true })
+      const out = path.join(folder, `${path.basename(film.rel, path.extname(film.rel))}.voiced.mp4`)
       // A film with a sound of its own keeps it, lowered under the narration; a silent one gets the narration alone.
       const original = probe.hasSound && probe.lufs !== null && probe.lufs > -60 ? { lufs: probe.lufs } : null
       await layNarration({ tools, film: film.abs, lines, seconds: filmSeconds, out, original })
@@ -601,17 +616,23 @@ export const open_round = {
       if (each > limits.each) throw new Error(`round.each: at most ${limits.each} cards each`)
       if (agents.includes(agent)) throw new Error('round.agents: not you — the lead plans and opens rounds; the writers hand in the cards')
     }
+    // A chat is a string — its id, or the number people see. Any other value is not handed over by every gugu (a JSON
+    // number on dev before PR-2), and would reach files.create unchecked, as the person's (review r4).
+    if (args.chat !== undefined && typeof args.chat !== 'string') throw new Error('chat: this chat\'s id or its number, as a string ("211386", not 211386)')
     let board = args.board
+    let opening = board
     if (!board) {
-      const chat = String(args.chat ?? '').trim()
+      const chat = args.chat?.trim() ?? ''
       const title = String(args.title ?? '').trim()
       const brief = String(args.brief ?? '').trim()
       if (!chat || !title || !brief) throw new Error('the first call makes the table: give chat (this group\'s chat id), title (the film\'s name) and brief (what the person asked for) — or give board, the table you lead')
       fits(limitsOf({}))
       const entry = await gugu.files.create({ chat, name: `${title.replace(/[\/:*?"<>|]/g, ' ').trim()}.studio.json` }, { brief: { $text: brief }, lead: agent, plan: [], rounds: {}, cards: {}, feedback: {}, rules: {}, names: {}, spend: {} })
       board = entry.id
+      // Opened in the chat it was made in, as the lead (a bare id would open it as the person — review r4).
+      opening = { chat: entry.chat ?? chat, id: entry.id }
     }
-    const f = await openBoard(board)
+    const f = await openBoard(opening)
     try {
       const data = f.data
       if (data.lead && data.lead !== agent) throw new Error('another agent leads this table: you are a writer here — board says what is asked of you')
@@ -625,11 +646,7 @@ export const open_round = {
       const id = newId('r')
       const track = String(round.track ?? '').trim() || (kind === '宣传稿' || kind === '文案' ? '文字' : '片子')
       const n = addRound(data, { id, track, kind, slot, ask: String(round.ask ?? '').trim(), each, agents, refs: (round.refs ?? picksSoFar(data)).map(String) }, agent, now())
-      // The plan is the rounds after this one. A plan given with this call is that, as given; without one, the step just
-      // opened leaves the plan — the first step, when this round is it (its kind and its slot: review r3, the next
-      // 分镜 went when a plan came with the first).
-      if (args.plan) data.plan = args.plan.map((step) => ({ kind: String(step.kind), slot: String(step.slot ?? step.kind), ...(step.track ? { track: String(step.track) } : {}) }))
-      else if (Array.isArray(data.plan) && data.plan[0]?.kind === kind && data.plan[0]?.slot === slot) data.plan = data.plan.slice(1).map((step) => ({ ...step }))
+      data.plan = planAfter(data.plan, args.plan, kind, slot)
       await flushed(f)
       const told = []
       const notTold = []

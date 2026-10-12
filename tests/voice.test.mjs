@@ -212,7 +212,8 @@ test('a film voiced: each line at its start, at -16 LUFS, the picture untouched,
   const { board } = table()
   const p = film('cut.mp4', 6)
   const answer = await voice.run({ board: 'table', film: p, voice: 'rex', lines: [{ text: '第一句', at: 0.5 }, { text: '第二句', at: 3 }] }, call)
-  assert.equal(answer.path, 'renders/cut.voiced.mp4')
+  // In the caller's own folder for the table (review r4), not beside the film.
+  assert.equal(answer.path, 'studio/t/a/cut.voiced.mp4')
   assert.deepEqual(service.spoken, [['Rex', '第一句'], ['Rex', '第二句']])
   const out = path.join(work, answer.path)
   const check = await checkClip(out, tools)
@@ -327,26 +328,59 @@ const bandLevel = (file, from, seconds, freq) => {
 }
 
 /**
- * A 6 s film whose own sound is a 220 Hz tone at this gain, voiced with two lines (1 s and 3.5 s): its levels, read. The
- * tone is stereo, as the voiced film is: a mono one is spread over two channels 3 dB down each (the same loudness), which
- * would read as 3 dB less per sample here.
+ * A film whose own sound is a 220 Hz tone at this gain (null: no sound of its own), voiced: its levels, read — the
+ * narration in its first line (1.3–1.8 s), the film's sound there and where no line is (`between`). The tone is stereo,
+ * as the voiced film is: a mono one is spread over two channels 3 dB down each (the same loudness), which would read as
+ * 3 dB less per sample here.
  */
-async function voicedOver(name, gain) {
+async function voicedOver(name, gain, { seconds = 6, lines = [{ text: '甲', at: 1 }, { text: '乙', at: 3.5 }], between = [5.1, 0.7] } = {}) {
   mkdirSync(path.join(work, 'renders'), { recursive: true })
   const film = path.join(work, 'renders', `${name}.mp4`)
-  execFileSync(tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=6:size=320x180:rate=10', '-f', 'lavfi', '-i', `sine=frequency=220:duration=6,volume=${gain}`,
-    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ac', '2', '-shortest', film])
-  const answer = await voice.run({ board: 'table', film: `renders/${name}.mp4`, lines: [{ text: '甲', at: 1 }, { text: '乙', at: 3.5 }] }, call)
+  const sound = gain === null ? [] : ['-f', 'lavfi', '-i', `sine=frequency=220:duration=${seconds},volume=${gain}`]
+  execFileSync(tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', `testsrc=duration=${seconds}:size=320x180:rate=10`, ...sound,
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', ...(gain === null ? [] : ['-c:a', 'aac', '-ac', '2', '-shortest']), film])
+  const answer = await voice.run({ board: 'table', film: `renders/${name}.mp4`, lines }, call)
   const out = path.join(work, answer.path)
+  const written = await checkClip(out, tools)
   return {
-    film: (await checkClip(film, tools)).lufs,
-    before: bandLevel(film, 5.1, 0.7, 220), // the film's own sound where no line will be
-    between: bandLevel(out, 5.1, 0.7, 220),
+    film: gain === null ? null : (await checkClip(film, tools)).lufs,
+    before: gain === null ? null : bandLevel(film, ...between, 220), // the film's own sound where no line will be
+    between: bandLevel(out, ...between, 220),
     under: bandLevel(out, 1.3, 0.5, 220),
     voice: bandLevel(out, 1.3, 0.5, 330),
-    whole: (await checkClip(out, tools)).lufs,
+    whole: written.lufs,
+    peak: written.peak,
   }
 }
+
+test('turnDown: the whole film only ever goes down — by what is over -14 LUFS or -1 dBTP, the larger — else not at all (148, review r4)', async () => {
+  const { turnDown } = await import('../app/voice.js')
+  assert.equal(turnDown({ lufs: -16, peak: -3 }), 0)
+  // A film with little said, quieter than -16: left as it is, not raised.
+  assert.equal(turnDown({ lufs: -22.5, peak: -9 }), 0)
+  near(turnDown({ lufs: -12.5, peak: -3 }), -1.5)
+  near(turnDown({ lufs: -16, peak: -0.4 }), -0.6)
+  near(turnDown({ lufs: -13, peak: 0.5 }), -1.5)
+  assert.equal(turnDown({ lufs: null, peak: null }), 0)
+})
+
+test('a voiced film goes into the caller\'s own folder, whoever\'s film it voices: a writer never writes over another\'s (review r4)', { skip: noFfmpeg }, async () => {
+  key('test-key')
+  standIn()
+  table()
+  const [a, b] = [{ ...call, agent: 'user:aaaaaaaa-1' }, { ...call, agent: 'user:bbbbbbbb-2' }]
+  const cut = 'studio/t/aaaaaaaa/cut.mp4'
+  mkdirSync(path.dirname(path.join(work, cut)), { recursive: true })
+  execFileSync(tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=3:size=320x180:rate=10', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(work, cut)])
+  const sha = (p) => createHash('sha256').update(readFileSync(path.join(work, p))).digest('hex')
+  const mine = await voice.run({ board: 'table', film: cut, lines: [{ text: '甲', at: 0.5 }] }, a)
+  assert.equal(mine.path, 'studio/t/aaaaaaaa/cut.voiced.mp4')
+  const before = sha(mine.path)
+  // B voices A's cut: B's own folder gets it, A's voiced film is as it was.
+  const theirs = await voice.run({ board: 'table', film: cut, voice: 'rex', lines: [{ text: '乙', at: 0.5 }] }, b)
+  assert.equal(theirs.path, 'studio/t/bbbbbbbb/cut.voiced.mp4')
+  assert.equal(sha(mine.path), before)
+})
 
 test('a film with a sound of its own keeps it: there between the lines, and 12–18 dB under the narration while a line is spoken (review d00ad0e)', { skip: noFfmpeg }, async () => {
   key('test-key')
@@ -358,7 +392,7 @@ test('a film with a sound of its own keeps it: there between the lines, and 12�
   assert.ok(between - under >= 5, `under a line the music goes down (${between} → ${under} dB)`)
   const gap = voiceOver - under
   assert.ok(gap >= 12 && gap <= 18, `under a line the music sits 12–18 dB under the narration (${gap.toFixed(1)} dB)`)
-  assert.ok(Math.abs(whole - -16) <= 1, `the whole at -16 LUFS (${whole})`)
+  assert.ok(whole <= -14 + 0.3, `the whole no louder than -14 LUFS (${whole})`)
 })
 
 test('the film\'s own sound is brought to one level first: the narration sits the same on a medium and a loud film, and a quiet one is not raised (review r3)', { skip: noFfmpeg }, async (t) => {
@@ -383,5 +417,30 @@ test('the film\'s own sound is brought to one level first: the narration sits th
   }
   // Quieter than BED_LUFS: as it was between the lines — never raised (review r3, D3).
   assert.ok(Math.abs(quiet.between - quiet.before) <= 1, `a quiet film's sound is not raised: ${r(quiet.before)} → ${r(quiet.between)} dB`)
-  for (const x of [quiet, medium, loud]) assert.ok(Math.abs(x.whole - -16) <= 1, `the whole at -16 LUFS: ${said(x)}`)
+  // The narration, the fixed point, is the same over all three; no whole is louder than -14 LUFS.
+  assert.ok(Math.abs(quiet.voice - medium.voice) <= 1.5, `the narration: ${said(quiet)} | ${said(medium)}`)
+  for (const x of [quiet, medium, loud]) assert.ok(x.whole <= -14 + 0.3, `the whole no louder than -14 LUFS: ${said(x)}`)
+})
+
+test('the narration is the fixed point: the same with much or little said and on a 10-minute film — the whole is never raised, only turned down past -14 LUFS or -1 dBTP (148, review r4)', { skip: noFfmpeg, timeout: 240_000 }, async (t) => {
+  key('test-key')
+  standIn()
+  table()
+  const r = (n) => (n === null ? '—' : n.toFixed(1))
+  const said = (x) => `voice ${r(x.voice)}, between ${r(x.between)} (was ${r(x.before)}), under ${r(x.under)}, whole ${r(x.whole)} LUFS, true peak ${r(x.peak)}`
+  // No sound of its own: the narration alone, as it is laid.
+  const alone = await voicedOver('alone', null)
+  // Much said: five 1 s lines in 6 s. Little said: one line in 6 s. Ten minutes, twenty lines (one every 30 s).
+  const dense = await voicedOver('dense', 2, { lines: [0, 1.1, 2.2, 3.3, 4.4].map((at, i) => ({ text: `密 ${i}`, at })), between: [5.75, 0.2] })
+  const sparse = await voicedOver('sparse', 2, { lines: [{ text: '甲', at: 1 }] })
+  const long = await voicedOver('long', 2, { seconds: 600, lines: Array.from({ length: 20 }, (_, i) => ({ text: `长 ${i}`, at: 1 + i * 30 })), between: [15, 1] })
+  for (const [name, x] of Object.entries({ alone, dense, sparse, long })) t.diagnostic(`${name}: ${said(x)}`)
+  // The narration does not move with how much is said or how long the film is (was +2.5 dB at a third, +6 dB on 10 min).
+  for (const x of [dense, sparse, long]) assert.ok(Math.abs(x.voice - alone.voice) <= 1.5, `the narration: alone ${said(alone)} | ${said(x)}`)
+  // The film's own sound between the lines is where BED_LUFS put it, the long film's too (it went up to -20.5 before).
+  assert.ok(Math.abs(long.between - sparse.between) <= 1, `between the lines: ${said(sparse)} | ${said(long)}`)
+  // Never raised: the less said, the quieter the whole; never over -14 LUFS or -1 dBTP.
+  assert.ok(alone.whole >= -17 && alone.whole <= -15, `the narration alone at -16 LUFS: ${said(alone)}`)
+  assert.ok(sparse.whole < -16.5 && long.whole < sparse.whole, `little said comes out quieter: ${said(sparse)} | ${said(long)}`)
+  for (const x of [alone, dense, sparse, long]) assert.ok(x.whole <= -14 + 0.3 && x.peak <= -1 + 0.3, `within -14 LUFS and -1 dBTP: ${said(x)}`)
 })
