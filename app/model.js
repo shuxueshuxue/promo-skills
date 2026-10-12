@@ -235,6 +235,40 @@ export function checkLine(check) {
 /** A card's classes on the page: style.css styles .studio-card, and .studio-card.picked outlines the picked one. */
 export const cardClass = (picked) => ['card', 'studio-card', ...(picked ? ['picked'] : [])].join(' ')
 
+/**
+ * Dollars as the table shows them: cents from a dollar up, tenths of a cent under that, and under a cent its two first
+ * figures ($0.00017) — something paid for never reads $0.000 (trial 10-12, a voice sample).
+ */
+export function money(usd) {
+  if (!usd) return ''
+  if (usd >= 1) return `$${usd.toFixed(2)}`
+  if (usd >= 0.01) return `$${usd.toFixed(3)}`
+  return `$${usd.toFixed(1 - Math.floor(Math.log10(usd))).replace(/0+$/, '')}`
+}
+
+/** A card's history in words, beside its marks: how many versions, notes and rejects, and whether it is the pick. */
+export function marksWords(events, picked) {
+  const count = (kind) => events.filter((e) => e.kind === kind).length
+  return [
+    `交了 ${count('version')} 版`,
+    count('note') ? `批注 ${count('note')}` : '',
+    count('reject') ? `打回 ${count('reject')}` : '',
+    picked ? '选中' : '',
+  ].filter(Boolean).join(' · ')
+}
+
+/** Who leads, as the lead's row names it: 组长 and its name — once, when the name says it already (trial 10-12: 组长 组长). */
+export const leadLabel = (name) => (String(name).includes('组长') ? String(name) : `组长 ${name}`)
+
+/**
+ * A card's text with its line breaks: an agent that escaped them (backslash-n, and not one real break — trial 10-12, a
+ * Codex writer) gets them back. A text with real breaks is left as written, backslashes and all.
+ */
+export function withBreaks(text) {
+  const s = String(text ?? '')
+  return !s.includes('\n') && s.includes('\\n') ? s.replace(/\\r\\n|\\n/g, '\n') : s
+}
+
 export const coverOf = (card) => card?.video?.cover ?? card?.files?.[0] ?? null
 
 /**

@@ -9,7 +9,7 @@
 // Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
 // their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, limitsOf, roundCall, waitingRound, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, spendOf, tracksInOrder } from './model.js'
+import { KINDS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, leadLabel, limitsOf, marksWords, money, roundCall, waitingRound, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, spendOf, tracksInOrder, withBreaks } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -110,6 +110,8 @@ async function loadOriginal(cardId, video) {
     file?.close()
   }
   draw()
+  // It was asked for with a click: it plays. A refusal (no gesture left after a slow read) leaves its controls to click.
+  if (originals.get(key)?.url) document.querySelector(`video[data-key="original:${CSS.escape(key)}"]`)?.play().catch(() => {})
 }
 const megabytes = (bytes) => (bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : '')
 function videoView(cardId, video, open) {
@@ -124,7 +126,8 @@ function videoView(cardId, video, open) {
   shown.set(cardId, key)
   const original = originals.get(key)
   const facts = [video.seconds ? `${Math.round(video.seconds * 10) / 10} 秒` : '', video.width && video.height ? `${video.width}×${video.height}` : '', megabytes(video.bytes)].filter(Boolean).join(' · ')
-  return html`<div class="pics">${mediaView(video.cover)}</div>
+  // The original, once here, takes the cover's place: one picture on the card, the one that plays (trial 10-12: both).
+  return html`${original?.url ? '' : html`<div class="pics">${mediaView(video.cover)}</div>`}
     ${open && video.strip ? html`<div class="strip">${mediaView(video.strip)}</div>` : ''}
     ${original?.url ? html`<video class="media" data-key="original:${key}" src="${original.url}" controls playsinline preload="metadata"></video>` : ''}
     ${original?.changed ? html`<small class="muted" role="alert">原片在交卡之后改过了（和卡上记的不是同一份）。</small>` : ''}
@@ -300,6 +303,7 @@ $('#r-start').onclick = async () => {
   const each = Math.max(1, Math.min(5, Number($('#r-each').value) || 1))
   const id = newId('r')
   openRound = id // before the write: writing the round redraws, and the new stage is the one to show
+  following = true
   // The same way the lead's open_round puts a round on the table.
   const n = addRound(f.data, { id, track, kind, slot, ask: $('#r-ask').value.trim(), each, agents: chosen, refs: pickedCards().map(([cardId]) => cardId) }, me, now())
   $('#r-ask').value = ''
@@ -369,23 +373,25 @@ $('#say-send').onclick = async () => {
 }
 
 // ─── the project: spine and stage ───────────────────────────────────────────────────────────────────────────────────
-let openRound = null // the stage shown; the latest one until a person picks another
+let openRound = null // the stage shown
+// The stage shown follows the newest round — a round the lead opens comes into view by itself (trial 10-12: after a pick
+// the table stayed on the round just picked). A person opening an older stage stops it; picking or skipping starts it again.
+let following = true
 let shownRound = null // the stage last scrolled into view on the spine
 let askOpen = false // the open stage's request shown in full (three lines until clicked)
 const opened = new Set() // cards whose text and pictures are shown in full
 const histories = new Set() // cards whose history is unfolded
 const MARK = { version: 'v', note: 'n', reject: 'r', pick: 'p' }
 const marks = (events) => html`<span class="marks">${events.map((e) => html`<i class="mark ${MARK[e.kind] ?? 'n'}"></i>`)}</span>`
-const money = (usd) => (usd ? `$${usd.toFixed(usd < 1 ? 3 : 2)}` : '')
 const seconds = (s) => (s >= 90 ? `${Math.round(s / 60)} 分钟` : s ? `${Math.round(s)} 秒` : '')
 
 document.addEventListener('click', (event) => {
   const el = event.target.closest('[data-act]')
   if (!el) return
   const { act, card, round } = el.dataset
-  if (act === 'stage') { openRound = round; askOpen = false; draw() }
-  else if (act === 'pick') { f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }; picked(card) }
-  else if (act === 'skip') skipped(round)
+  if (act === 'stage') { openRound = round; following = round === roundsInOrder(f.data).at(-1)?.[0]; askOpen = false; draw() }
+  else if (act === 'pick') { following = true; f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }; picked(card) }
+  else if (act === 'skip') { following = true; skipped(round) }
   else if (act === 'lead') takeOverOrHandBack()
   else if (act === 'note') ask(card)
   else if (act === 'open') { opened.has(card) ? opened.delete(card) : opened.add(card); draw() }
@@ -446,7 +452,7 @@ function leadView(data) {
         ? `下一轮会开「${data.plan[0].slot}」`
         : '计划都走完了'
   return html`<gugu-avatar user="${data.lead}" size="xs"></gugu-avatar>
-    <span>组长 ${nameOf(data.lead)}：${status}</span>
+    <span>${leadLabel(nameOf(data.lead))}：${status}</span>
     <button class="sm" data-act="lead">${data.paused ? '交还组长' : '暂停组长'}</button>`
 }
 
@@ -459,7 +465,7 @@ function historyView(data, cardId) {
       <span><strong>${who}</strong> ${what}</span> <gugu-time datetime="${e.at}"></gugu-time>
       ${e.comment ? html`<p>${e.comment}</p>` : ''}
       ${e.kind === 'version' && e.lost ? html`<p class="muted">这一版的正文没留下：0.3.0 以前，交新版会直接盖掉旧版。</p>` : ''}
-      ${e.kind === 'version' && !e.lost && e.version < (data.cards[cardId].version ?? 1) ? html`<details><summary>这一版写的</summary><p class="kept">${e.saved?.title ?? ''}${'\n'}${e.saved?.text ?? ''}</p></details>` : ''}
+      ${e.kind === 'version' && !e.lost && e.version < (data.cards[cardId].version ?? 1) ? html`<details><summary>这一版写的</summary><p class="kept">${e.saved?.title ?? ''}${'\n'}${withBreaks(e.saved?.text)}</p></details>` : ''}
     </div></li>`
   })}</ol>`
 }
@@ -476,7 +482,7 @@ function cardView(data, id, card, pick) {
     <small class="muted"><gugu-avatar user="${card.by}" size="xs"></gugu-avatar> ${nameOf(card.by)}${card.model ? ` · ${card.model}` : ''}${cost ? ` · ${cost}` : ''}</small>
     ${card.text ? html`<div class="text ${opened.has(id) ? 'open' : ''}" data-md="${id}"></div>` : ''}
     ${(card.text && card.text.length > 160) || files.length > 1 || card.video?.strip ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
-    <button class="marks-btn" data-act="history" data-card="${id}" aria-expanded="${histories.has(id)}" aria-label="经过">${marks(events)}</button>
+    <button class="marks-btn" data-act="history" data-card="${id}" aria-expanded="${histories.has(id)}"><small class="muted">经过：${marksWords(events, isPicked)}</small>${marks(events)}</button>
     ${histories.has(id) ? historyView(data, id) : ''}
     <div class="row">
       ${isPicked ? '' : html`<button data-act="pick" data-card="${id}">选这张</button>`}
@@ -514,7 +520,7 @@ function spendLine(data) {
 
 function draw() {
   const data = f.data
-  if (!openRound || !data.rounds[openRound]) openRound = roundsInOrder(data).at(-1)?.[0] ?? null
+  if (following || !openRound || !data.rounds[openRound]) openRound = roundsInOrder(data).at(-1)?.[0] ?? null
   render($('#spine'), spineView(data))
   render($('#stage'), stageView(data))
   $('#spend').textContent = spendLine(data)
@@ -533,7 +539,7 @@ function draw() {
     drawLimits()
   }
   // A card's text is markdown, drawn with gugu's own renderer — again after every render, which empties these boxes.
-  for (const box of document.querySelectorAll('[data-md]')) md.render(box, data.cards[box.dataset.md]?.text ?? '')
+  for (const box of document.querySelectorAll('[data-md]')) md.render(box, withBreaks(data.cards[box.dataset.md]?.text))
 }
 
 function rememberNames() {

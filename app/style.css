@@ -57,8 +57,9 @@ body { margin: 0; }
 .studio-card .text { max-height: 7lh; overflow: hidden; color: var(--em-foreground-muted); }
 .studio-card .text.open { max-height: none; color: var(--em-foreground); }
 
-/* a card's history as marks: ● a version · ○ a note · ✕ a reject · ✓ the pick — shapes, not words */
-.marks-btn { border: 0; background: none; padding: var(--em-spacing-xs) 0 0; border-top: 1px solid var(--em-border); border-radius: 0; justify-content: flex-start; }
+/* a card's history as marks: ● a version · ○ a note · ✕ a reject · ✓ the pick — and before them the same in words
+   (trial 10-12: the dots alone read as stray dots) */
+.marks-btn { display: flex; align-items: center; flex-wrap: wrap; gap: var(--em-spacing-sm); border: 0; background: none; padding: var(--em-spacing-xs) 0 0; border-top: 1px solid var(--em-border); border-radius: 0; justify-content: flex-start; }
 .marks { display: flex; align-items: center; gap: 8px; min-height: 14px; }
 .mark { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; position: relative; }
 .mark.v { background: var(--em-foreground); }

@@ -170,6 +170,40 @@ test('a picked card carries studio-card and picked as two classes, the ones styl
   assert.match(readFileSync(new URL('../app/app.js', import.meta.url), 'utf8'), /<article class="\$\{cardClass\(isPicked\)\}"/)
 })
 
+test('money: something paid never reads $0.000 — under a cent its two first figures (trial 10-12, a $0.000165 sample)', async () => {
+  const { money } = await import('../app/model.js')
+  assert.deepEqual([0, null, undefined].map(money), ['', '', ''])
+  assert.equal(money(0.000171), '$0.00017')
+  assert.equal(money(0.001335), '$0.0013')
+  assert.equal(money(0.0001), '$0.0001')
+  assert.equal(money(0.133), '$0.133')
+  assert.equal(money(0.01), '$0.010')
+  assert.equal(money(2.5), '$2.50')
+})
+
+test('a card\'s history in words beside its marks; the lead named once; escaped line breaks given back', async () => {
+  const { leadLabel, marksWords, withBreaks } = await import('../app/model.js')
+  const events = [{ kind: 'version' }, { kind: 'note' }, { kind: 'reject' }, { kind: 'version' }, { kind: 'pick' }]
+  assert.equal(marksWords(events, true), '交了 2 版 · 批注 1 · 打回 1 · 选中')
+  assert.equal(marksWords([{ kind: 'version' }], false), '交了 1 版')
+  // A pick taken back by a reject is no pick: the words follow the card, not the count of picks.
+  assert.equal(marksWords([{ kind: 'version' }, { kind: 'pick' }, { kind: 'reject' }], false), '交了 1 版 · 打回 1')
+  assert.equal(leadLabel('组长'), '组长')
+  assert.equal(leadLabel('组长·A1'), '组长·A1')
+  assert.equal(leadLabel('Claude 3'), '组长 Claude 3')
+  // The Codex writer's card (trial 10-12): one line, its breaks written as backslash-n.
+  assert.equal(withBreaks('三个镜头。\\n\\n- 字卡\\n- 出图'), '三个镜头。\n\n- 字卡\n- 出图')
+  // Real breaks: written as meant, a backslash-n in it (a code sample) is kept.
+  assert.equal(withBreaks('printf("a\\n")\nnext line'), 'printf("a\\n")\nnext line')
+  assert.equal(withBreaks(undefined), '')
+  // The page draws card text and kept versions through it, and the lead's row through leadLabel.
+  const page = readFileSync(new URL('../app/app.js', import.meta.url), 'utf8')
+  assert.match(page, /md\.render\(box, withBreaks\(/)
+  assert.match(page, /\$\{withBreaks\(e\.saved\?\.text\)\}/)
+  assert.match(page, /\$\{leadLabel\(nameOf\(data\.lead\)\)\}：/)
+  assert.doesNotMatch(page, /const money = /)
+})
+
 test('what the table has cost: the sum of what the tools paid, by tool, and the payments not priced yet', () => {
   const spend = {
     s1: { tool: 'voice', usd: 0.004, unpriced: 1 },
