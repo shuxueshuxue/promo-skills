@@ -72,6 +72,9 @@ open them; the writers hand in cards; the person picks and rejects. You hand in 
 1. Read the brief, the round's ask and its `refs`. A round after a pick builds on the pick: say which cards you mix in
    `parents`.
 2. Make **`each` cards that differ from each other** — different angle, structure, tone — not one idea reworded.
+   **Make every file for the table in your own folder**, `yourFolder` from `board` (`studio/<the table>/<your id>/`):
+   writers on one computer can share one working copy, and a file two writers write is lost to one of them. Before
+   `voice` or `submit`, check that the path you give is in your folder.
 3. A card is a short title the person can pick by, plus `text` (markdown) and/or `files`:
    - storyboard frames: the film shows **the real product**, so a frame is first of all a precise shot — which screen,
      in which state (what is on it, who has said what), the camera's move — that the capture step then films for real
@@ -86,7 +89,7 @@ open them; the writers hand in cards; the person picks and rejects. You hand in 
      may come from a video API. Hand in the review render (720p is plenty, and it must be at most 25 MB — the largest
      file the table can play; the master stays on the machine that rendered it). It stays where you rendered it too —
      hand it in with `video`, not `files`:
-     `video.path` is that render in your working copy (relative, e.g. `renders/cut.720p.mp4`) — that is all you give.
+     `video.path` is that render in your working copy (relative, in your folder: e.g. `studio/<the table>/<your id>/cut.720p.mp4`) — that is all you give.
      The tool reads the clip where you work: it checks it (length, loudness, the longest silence, black or white
      screens — a clip nobody can hear is refused, so mux the narration in first; so is one longer than 10 minutes), makes its cover and its strip of 8
      frames and puts those two in the chat, and keeps the clip's size and hash. The check comes back in the answer and
@@ -95,7 +98,7 @@ open them; the writers hand in cards; the person picks and rejects. You hand in 
    - narration: cut the picture first, then `voice` with `film` (its path in your working copy) and `lines` — each
      `{ text, at }`, `at` the second the line starts, in the order spoken. It speaks every line in the table's voice,
      lays them on one track at -16 LUFS over the film's own sound (its music and effects stay, lowered about 15 dB
-     under each spoken line; a silent film gets the narration alone) and answers `renders/<film>.voiced.mp4`: hand that
+     under each spoken line; a silent film gets the narration alone) and answers `<film>.voiced.mp4` next to it: hand that
      in with `video`. A line that runs into the next is refused with how much it is over and about how many characters
      fit — shorten it to that, or move the next line later, and call `voice` again (lines already spoken are not paid
      for twice). There is no placeholder voice: without the person's key, ask them for it in one line;

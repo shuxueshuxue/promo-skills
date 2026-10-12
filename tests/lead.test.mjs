@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { LIMITS, addRound, limitsOf, picksSoFar, roundCall, waitingRound } from '../app/model.js'
-import { open_round } from '../app/tools.js'
+import { board, open_round } from '../app/tools.js'
 
 const LEAD = 'user:lead'
 const [A, B, C, D, E] = ['user:a', 'user:b', 'user:c', 'user:d', 'user:e']
@@ -124,6 +124,13 @@ test('a plan given with a round is the rounds after it, as given; without one, t
   assert.deepEqual(await opened([{ kind: '分镜', slot: '结尾' }, { kind: '整片', slot: '整片' }], start), ['分镜·结尾', '整片·整片'])
   // No plan given, and this round is the plan's first step: it leaves.
   assert.deepEqual(await opened([{ kind: '分镜', slot: '开头' }, { kind: '整片', slot: '整片' }], start), ['整片·整片'])
+})
+
+test('board tells each writer its own folder for the table: writers sharing a working copy write no file twice (trial 10-12)', async () => {
+  chat()
+  await open_round.run(first, { agent: LEAD })
+  const [a, b] = [await board.run({ board: 'item-table' }, { agent: A }), await board.run({ board: 'item-table' }, { agent: B })]
+  assert.deepEqual([a.yourFolder, b.yourFolder], ['studio/t/a', 'studio/t/b'])
 })
 
 test('the chat of the first call is a gugu-chat: gugu hands it over as the caller\'s own, also by its number (review r3)', () => {

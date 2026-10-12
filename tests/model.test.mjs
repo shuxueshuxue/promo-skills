@@ -204,6 +204,15 @@ test('a card\'s history in words beside its marks; the lead named once; escaped 
   assert.doesNotMatch(page, /const money = /)
 })
 
+test('each writer has a folder of its own for a table: two writers sharing a working copy never write one file (trial 10-12)', async () => {
+  const { writerFolder } = await import('../app/model.js')
+  assert.equal(writerFolder('一笔 · 15 秒.studio.json', 'user:383737d7-b72f-44c2-9637-e2c747969003'), 'studio/一笔 · 15 秒/383737d7')
+  assert.notEqual(writerFolder('t.studio.json', 'user:383737d7-x'), writerFolder('t.studio.json', 'user:d47cee7d-x'))
+  // A name that would climb or split a path is flattened; no name is still a folder.
+  assert.equal(writerFolder('a/../b:c.studio.json', 'user:abc'), 'studio/a .. b c/abc')
+  assert.equal(writerFolder(undefined, undefined), 'studio/table/agent')
+})
+
 test('what the table has cost: the sum of what the tools paid, by tool, and the payments not priced yet', () => {
   const spend = {
     s1: { tool: 'voice', usd: 0.004, unpriced: 1 },

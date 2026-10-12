@@ -272,6 +272,17 @@ export function withBreaks(text) {
 export const coverOf = (card) => card?.video?.cover ?? card?.files?.[0] ?? null
 
 /**
+ * Where a writer makes its files for a table, in its working copy: studio/<the table>/<its id's first 8>. Writers on one
+ * computer can share one working copy (new tasks land in the same project): a folder each, and no file is two writers'
+ * (trial 10-12: one writer's renders/film-silent.mp4 went over a file that was already there).
+ */
+export function writerFolder(tableName, agent) {
+  const table = String(tableName ?? '').replace(/\.studio\.json$/, '').replace(/[\\/:*?"<>|]/g, ' ').trim() || 'table'
+  const who = String(agent ?? '').replace(/^user:/, '').slice(0, 8) || 'agent'
+  return `studio/${table}/${who}`
+}
+
+/**
  * A path in a working copy as a card keeps it (POSIX, relative, inside): null when it is empty, absolute, or climbs out.
  * The tool still checks the real path on the disk (a link out); this is the shape alone.
  */

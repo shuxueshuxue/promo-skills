@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MAX_SECONDS, checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
 import { PRICING, costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
-import { KINDS, addRound, answered, feedbackOf, limitsOf, normalizeTable, picksSoFar, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath } from './model.js'
+import { KINDS, addRound, answered, feedbackOf, limitsOf, normalizeTable, picksSoFar, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, VOICE_MODEL, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .studio.json file the whisper you got is about.' }
@@ -41,7 +41,7 @@ const VIDEO = {
   type: 'object',
   required: ['path'],
   properties: {
-    path: { type: 'string', description: 'The review render (720p, at most 25 MB) in your working copy, relative to it (renders/cut.720p.mp4). It stays there — the card keeps where it is, not a copy.' },
+    path: { type: 'string', description: 'The review render (720p, at most 25 MB) in your working copy, relative to it, in your folder (board\'s yourFolder): studio/<the table>/<your id>/cut.720p.mp4. It stays there — the card keeps where it is, not a copy.' },
   },
   description: 'A clip whose original stays on your machine. submit reads it here: checks it (a clip nobody can hear is refused), makes its cover and its strip of frames and puts those two in the chat. Instead of putting the clip itself in files.',
 }
@@ -62,7 +62,7 @@ function workingCopyRoot({ session, workspaceRoot }) {
 function inWorkingCopy(given, stamp, what) {
   const root = workingCopyRoot(stamp)
   const rel = workingCopyPath(given)
-  if (!rel) throw new Error(`${what} is a path inside your working copy, like renders/cut.mp4 — not ${JSON.stringify(given)}`)
+  if (!rel) throw new Error(`${what} is a path inside your working copy, like studio/<the table>/<your id>/cut.mp4 — not ${JSON.stringify(given)}`)
   let abs
   try {
     abs = realpathSync(path.join(root, rel))
@@ -214,7 +214,7 @@ const cardLine = (data, id, card) => ({
 
 export const board = {
   description:
-    'Read a Studio (片场) card table: the brief, the rounds that ask you for cards, the rules added on this table, every card with its status and notes, and the feedback on your own cards (answer a reject with a new version of that card). Call it first whenever you are woken about a card table or asked to look at its cards.',
+    'Read a Studio (片场) card table: the brief, the rounds that ask you for cards, the rules added on this table, every card with its status and notes, the feedback on your own cards (answer a reject with a new version of that card), and yourFolder — the folder of your working copy where everything you make for this table goes. Call it first whenever you are woken about a card table or asked to look at its cards.',
   inputSchema: { type: 'object', required: ['board'], properties: { board: BOARD } },
   annotations: { readOnlyHint: true },
   async run({ board: id }, { agent }) {
@@ -227,6 +227,8 @@ export const board = {
       return {
         brief: String(data.brief ?? ''),
         you: agent,
+        // Every file you make for this table goes under this folder of your working copy — another writer may share it.
+        yourFolder: writerFolder(f.entry?.name, agent),
         // Who leads (opens the rounds with open_round), what it plans next, and what it waits for.
         lead: { agent: data.lead ?? null, isYou: Boolean(data.lead) && data.lead === agent, plan: data.plan ?? [], pausedByPerson: Boolean(data.paused), waitingFor: waitingRound(data), limits: limitsOf(data) },
         rules: {
@@ -472,13 +474,13 @@ export const image = {
 
 export const voice = {
   description:
-    'Voice a film\'s narration, or voice samples to pick a voice from, with the voice model the person set up on the card table (OpenRouter, their key). A film: give the film in your working copy and its lines, each with the second it starts at; every line is spoken, laid at its start on one track at -16 LUFS over the film\'s own sound — kept, and lowered under each spoken line; a silent film gets the narration alone (the picture is not touched) → renders/<film>.voiced.mp4 next to it, which you hand in with submit → video. A line that runs into the next one is refused, saying by how much and about how many characters fit; a line already spoken the same way is not paid for again. Samples: give one line and several voices → one mp3 per voice; hand each in as its own card with submit → audio. What it paid is added to the table\'s total.',
+    'Voice a film\'s narration, or voice samples to pick a voice from, with the voice model the person set up on the card table (OpenRouter, their key). A film: give the film in your working copy and its lines, each with the second it starts at; every line is spoken, laid at its start on one track at -16 LUFS over the film\'s own sound — kept, and lowered under each spoken line; a silent film gets the narration alone (the picture is not touched) → <film>.voiced.mp4 next to it, which you hand in with submit → video. A line that runs into the next one is refused, saying by how much and about how many characters fit; a line already spoken the same way is not paid for again. Samples: give one line and several voices → one mp3 per voice, in your folder for this table (board\'s yourFolder); hand each in as its own card with submit → audio. What it paid is added to the table\'s total.',
   inputSchema: {
     type: 'object',
     required: ['board'],
     properties: {
       board: BOARD,
-      film: { type: 'string', description: 'The film in your working copy, relative to it (renders/cut.720p.mp4).' },
+      film: { type: 'string', description: 'The film in your working copy, relative to it, in your folder (board\'s yourFolder).' },
       lines: {
         type: 'array',
         items: { type: 'object', required: ['text', 'at'], properties: { text: { type: 'string' }, at: { type: 'number', description: 'The second it starts.' } } },
@@ -525,7 +527,11 @@ export const voice = {
         const text = String(args.sample).trim()
         if (!text) throw new Error('sample: the line to say in each voice')
         const root = workingCopyRoot({ session, workspaceRoot })
-        const dir = path.join(root, 'renders', 'voice-samples')
+        // In this writer's own folder for the table (board's yourFolder): two writers sampling eve are two files.
+        const table = await openBoard(args.board)
+        const folder = writerFolder(table.entry?.name, agent)
+        table.close()
+        const dir = path.join(root, ...folder.split('/'), 'voice-samples')
         mkdirSync(dir, { recursive: true })
         const samples = []
         for (const name of args.voices?.length ? args.voices.map((v) => voiceOf(settings, v)) : VOICES) {
