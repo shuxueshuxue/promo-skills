@@ -53,13 +53,37 @@ test('a purchase\'s price: waited for (its record comes seconds later), the upst
     globalThis.fetch = async () => (++asked < 3
       ? new Response('{"error":{"message":"Generation not found","code":404}}', { status: 404 })
       : new Response(JSON.stringify({ data: { is_byok: true, total_cost: 0.0001, upstream_inference_cost: 0.002 } }), { status: 200 }))
-    assert.equal(await costOf('k', 'gen-1', { tries: 5, wait: 1 }), 0.002)
+    assert.equal(await costOf('k', 'gen-1', { deadline: Date.now() + 2000, wait: 1 }), 0.002)
     assert.equal(asked, 3)
     globalThis.fetch = async () => new Response(JSON.stringify({ data: { is_byok: false, total_cost: 0.000015, upstream_inference_cost: 0 } }), { status: 200 })
-    assert.equal(await costOf('k', 'gen-2', { tries: 1, wait: 1 }), 0.000015)
+    assert.equal(await costOf('k', 'gen-2', { deadline: Date.now() + 2000, wait: 1 }), 0.000015)
     globalThis.fetch = async () => new Response('{}', { status: 404 })
-    assert.equal(await costOf('k', 'gen-3', { tries: 3, wait: 1 }), null)
+    assert.equal(await costOf('k', 'gen-3', { deadline: Date.now() + 50, wait: 1 }), null)
     assert.equal(await costOf('k', null), 0)
+  } finally {
+    globalThis.fetch = saved
+  }
+})
+
+test('a price lookup that never answers costs its clock, not the call: not priced, said in time (review d00ad0e)', async () => {
+  const saved = globalThis.fetch
+  try {
+    // A service that holds every request open until it is given up on.
+    globalThis.fetch = (_url, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)))
+    let started = Date.now()
+    assert.equal(await costOf('k', 'gen-hang', { deadline: Date.now() + 300, each: 5000, wait: 1 }), null)
+    assert.ok(Date.now() - started < 1500, `${Date.now() - started} ms past a 300 ms deadline`)
+    // Each ask has its own clock too: one hung ask does not take the whole deadline.
+    let asks = 0
+    globalThis.fetch = (_url, init) => {
+      asks += 1
+      return asks === 1
+        ? new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)))
+        : Promise.resolve(new Response(JSON.stringify({ data: { total_cost: 0.003 } }), { status: 200 }))
+    }
+    started = Date.now()
+    assert.equal(await costOf('k', 'gen-slow', { deadline: Date.now() + 5000, each: 200, wait: 1 }), 0.003)
+    assert.ok(Date.now() - started < 1500, `${Date.now() - started} ms`)
   } finally {
     globalThis.fetch = saved
   }

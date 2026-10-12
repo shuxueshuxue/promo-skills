@@ -470,7 +470,9 @@ export const voice = {
     let settled = null
     const settle = async () => {
       if (settled) return settled
-      const prices = await Promise.all(generations.map((generation) => costOf(key, generation)))
+      // One deadline for all of them: priced in time, or counted as not priced yet — the answer comes either way.
+      const deadline = Date.now() + 20_000
+      const prices = await Promise.all(generations.map((generation) => costOf(key, generation, { deadline })))
       const unpriced = prices.filter((n) => n === null).length
       settled = { usd: prices.reduce((sum, n) => sum + (n ?? 0), 0), ...(unpriced ? { unpriced } : {}) }
       if (prices.length) await recordSpend(args.board, { tool: 'voice', ...settled, by: agent ?? null, what: `${prices.length} line(s) spoken` })

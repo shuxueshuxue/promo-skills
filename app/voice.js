@@ -81,19 +81,27 @@ export async function speak({ key, model = VOICE_MODEL, voice, text, cacheDir })
 
 /**
  * What a purchase cost, as OpenRouter's own record of it says. A speech purchase's record appears some 12 s after it
- * (measured 10-12), so this waits up to ~20 s — callers price all of a call's purchases at once, not one by one. A key
- * that brings its own provider key (BYOK) is charged upstream: that cost is the one that counts. null: never appeared.
+ * (measured 10-12): this asks again until `deadline` (callers price all of a call's purchases at once, against one
+ * deadline), each ask on a clock of its own (`each`), so a service that hangs costs the deadline and no more. A key that
+ * brings its own provider key (BYOK) is charged upstream: that cost is the one that counts. null: not priced in time.
  */
-export async function costOf(key, generation, { tries = 25, wait = 800 } = {}) {
+export async function costOf(key, generation, { deadline = Date.now() + 20_000, each = 5_000, wait = 800 } = {}) {
   if (!generation) return 0
-  for (let i = 0; i < tries; i += 1) {
-    const res = await fetch(`https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(generation)}`, { headers: { Authorization: `Bearer ${key}` } }).catch(() => null)
-    if (res?.ok) {
-      const record = (await res.json().catch(() => ({}))).data ?? {}
-      const usd = record.is_byok ? Number(record.upstream_inference_cost) || Number(record.total_cost) : Number(record.total_cost)
-      if (Number.isFinite(usd)) return usd
+  while (Date.now() < deadline) {
+    const clock = AbortSignal.timeout(Math.max(1, Math.min(each, deadline - Date.now())))
+    try {
+      const res = await fetch(`https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(generation)}`, { headers: { Authorization: `Bearer ${key}` }, signal: clock })
+      if (res.ok) {
+        const record = (await res.json()).data ?? {}
+        const usd = record.is_byok ? Number(record.upstream_inference_cost) || Number(record.total_cost) : Number(record.total_cost)
+        if (Number.isFinite(usd)) return usd
+      }
+    } catch {
+      // not answered on its clock, or not JSON: ask again while there is time
     }
-    await new Promise((resolve) => setTimeout(resolve, wait))
+    const left = deadline - Date.now()
+    if (left <= 0) break
+    await new Promise((resolve) => setTimeout(resolve, Math.min(wait, left)))
   }
   return null
 }
