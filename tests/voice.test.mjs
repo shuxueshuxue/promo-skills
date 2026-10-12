@@ -102,16 +102,17 @@ after(() => {
   rmSync(data, { recursive: true, force: true })
 })
 process.env.GUGU_EXTENSION_DATA_DIR = data
-const { submit, voice } = await import('../app/tools.js')
+const { PRICING, submit, voice } = await import('../app/tools.js')
 const call = { agent: 'user:a', session: 's-1', workspaceRoot: work }
 const mp3 = (seconds) => {
   const out = path.join(data, `tone-${seconds}.mp3`)
   if (!existsSync(out)) execFileSync(tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', `sine=frequency=330:duration=${seconds}`, '-c:a', 'libmp3lame', out])
   return readFileSync(out)
 }
-const service = { spoken: [], priced: 0 }
+const service = { spoken: [], priced: 0, ready: true }
 function standIn() {
   service.spoken = []
+  service.ready = true
   globalThis.fetch = async (url, init) => {
     if (String(url).endsWith('/audio/speech')) {
       const body = JSON.parse(init.body)
@@ -120,6 +121,8 @@ function standIn() {
       return new Response(mp3(body.input.includes('LONG') ? 3 : 1), { status: 200, headers: { 'content-type': 'audio/mpeg', 'x-generation-id': `gen-${service.spoken.length}` } })
     }
     if (String(url).includes('/generation?id=')) {
+      // Not ready: the service has no record of the purchase yet (as for the first ~12 s of a real one).
+      if (!service.ready) return new Response('{"error":{"message":"Generation not found","code":404}}', { status: 404 })
       service.priced += 1
       return new Response(JSON.stringify({ data: { total_cost: 0.002 } }), { status: 200 })
     }
@@ -210,4 +213,26 @@ test('voice samples: one mp3 per voice, each handed in as its own card that play
   }
   assert.deepEqual(uploads.map((u) => u.files.map((f) => [f.name, f.type])), [[['eve.mp3', 'audio/mpeg']], [['rex.mp3', 'audio/mpeg']]])
   assert.equal(spendOf(board).total, 0.004)
+})
+
+test('purchases not priced in time keep their ids on the table; the next call prices them and the total catches up (review d00ad0e)', { skip: noFfmpeg }, async () => {
+  key('test-key')
+  standIn()
+  const { board } = table()
+  const saved = { ...PRICING }
+  Object.assign(PRICING, { wait: 300, catchUp: 3000 })
+  try {
+    service.ready = false
+    const first = await voice.run({ board: 'table', sample: '还没出账的那一句', voices: ['eve'] }, call)
+    assert.deepEqual([first.usd, first.unpriced], [0, 1])
+    const [entry] = Object.values(board.spend)
+    assert.deepEqual([entry.usd, entry.unpriced, entry.pending], [0, 1, ['gen-1']])
+    assert.deepEqual(spendOf(board), { total: 0, byTool: { voice: 0 }, unknown: 1 })
+    service.ready = true
+    await voice.run({ board: 'table', sample: '下一句', voices: ['eve'] }, call)
+    assert.deepEqual([entry.usd, entry.unpriced, entry.pending], [0.002, undefined, undefined])
+    assert.deepEqual(spendOf(board), { total: 0.004, byTool: { voice: 0.004 }, unknown: 0 })
+  } finally {
+    Object.assign(PRICING, saved)
+  }
 })

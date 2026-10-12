@@ -17,8 +17,9 @@
 //             a note is anyone's — a person's or an agent's they asked to look; reject and pick are the person's
 //   rules     { [id]: { text, from, by, at } }                   rules added on this table, on top of director-rulings.md
 //   names     { [user:…]: name }                                 members' names as the page last saw them (who wrote a card after they left)
-//   spend     { [id]: { tool: voice | image, usd, unpriced?, by, at, what } } what one call of the App's own tools paid the
-//             person's media service, written by that tool (unpriced: purchases the service had not priced yet)
+//   spend     { [id]: { tool: voice | image, usd, unpriced?, pending?, by, at, what } } what one call of the App's own tools
+//             paid the person's media service, written by that tool (unpriced: purchases the service had not priced
+//             yet; pending: their ids, asked again by the next voice or image call, which adds what it finds to usd)
 //   lead      user:…  the agent that leads the table: made it with open_round and opens its rounds (absent: the person does)
 //   plan      [{ kind, slot, track }]   the rounds the lead means to open next, as it last said (only it writes it)
 //   paused    true while the person has taken the table over from the lead (open_round opens nothing)

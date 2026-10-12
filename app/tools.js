@@ -158,6 +158,41 @@ async function recordSpend(board, entry) {
   }
 }
 
+/** How long a call waits for the service to price what it bought (its record comes ~12 s later); tests shorten it. */
+export const PRICING = { wait: 20_000, catchUp: 8_000 }
+
+/**
+ * Purchases an earlier call could not price in time: asked again (one short deadline for all), and the table's total
+ * corrected for those priced now. Done on the next voice or image call; what is still unpriced stays for the next one.
+ */
+async function catchUpSpend(board, key) {
+  const f = await openBoard(board)
+  try {
+    const owed = Object.values(f.data.spend ?? {}).filter((entry) => entry.pending?.length)
+    if (!owed.length) return
+    const deadline = Date.now() + PRICING.catchUp
+    const prices = new Map(await Promise.all(owed.flatMap((entry) => entry.pending).map(async (generation) => [generation, await costOf(key, generation, { deadline })])))
+    let changed = false
+    for (const entry of owed) {
+      const found = entry.pending.filter((generation) => typeof prices.get(generation) === 'number')
+      if (!found.length) continue
+      changed = true
+      entry.usd = (entry.usd ?? 0) + found.reduce((sum, generation) => sum + prices.get(generation), 0)
+      const left = entry.pending.filter((generation) => !found.includes(generation))
+      if (left.length) {
+        entry.pending = left
+        entry.unpriced = left.length
+      } else {
+        delete entry.pending
+        delete entry.unpriced
+      }
+    }
+    if (changed) await flushed(f)
+  } finally {
+    f.close()
+  }
+}
+
 const cardLine = (data, id, card) => ({
   id,
   round: data.rounds[card.round]?.n ?? null,
@@ -424,6 +459,7 @@ export const image = {
     const usage = json.usage ?? {}
     const usd = Number(usage.cost) || Number(usage.cost_details?.upstream_inference_cost) || 0
     await recordSpend(board, { tool: 'image', usd, by: agent ?? null, what: String(prompt).slice(0, 80) })
+    await catchUpSpend(board, key).catch(() => {})
     return {
       file_path: file,
       model: settings.imageModel || IMAGE_MODEL,
@@ -470,12 +506,16 @@ export const voice = {
     let settled = null
     const settle = async () => {
       if (settled) return settled
-      // One deadline for all of them: priced in time, or counted as not priced yet — the answer comes either way.
-      const deadline = Date.now() + 20_000
-      const prices = await Promise.all(generations.map((generation) => costOf(key, generation, { deadline })))
-      const unpriced = prices.filter((n) => n === null).length
-      settled = { usd: prices.reduce((sum, n) => sum + (n ?? 0), 0), ...(unpriced ? { unpriced } : {}) }
-      if (prices.length) await recordSpend(args.board, { tool: 'voice', ...settled, by: agent ?? null, what: `${prices.length} line(s) spoken` })
+      // One deadline for all of them: priced in time, or counted as not priced yet — the answer comes either way. What
+      // earlier calls left unpriced is asked again meanwhile.
+      const deadline = Date.now() + PRICING.wait
+      const [prices] = await Promise.all([
+        Promise.all(generations.map((generation) => costOf(key, generation, { deadline }))),
+        catchUpSpend(args.board, key).catch(() => {}),
+      ])
+      const pending = generations.filter((_, i) => prices[i] === null)
+      settled = { usd: prices.reduce((sum, n) => sum + (n ?? 0), 0), ...(pending.length ? { unpriced: pending.length } : {}) }
+      if (prices.length) await recordSpend(args.board, { tool: 'voice', ...settled, ...(pending.length ? { pending } : {}), by: agent ?? null, what: `${prices.length} line(s) spoken` })
       return settled
     }
     try {
