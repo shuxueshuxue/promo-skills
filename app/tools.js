@@ -495,11 +495,13 @@ export const voice = {
     if (!key) throw new Error('No voice key yet: the person adds their OpenRouter key in the card table\'s settings (the same key pictures use). Ask them in one line; there is no placeholder voice.')
     const model = settings.voiceModel || VOICE_MODEL
     const cacheDir = path.join(DATA_DIR, 'voice')
+    // ffmpeg first: a line is checked to be a sound before it is kept, and nothing is bought without one.
+    const tools = ffmpegTools()
     // What this call bought (a line from the cache costs nothing): priced all at once when the call ends — the service
     // keeps its record of a purchase some 12 s after it — and put on the table once, whatever happens.
     const generations = []
     const say = async (voiceName, text) => {
-      const said = await speak({ key, model, voice: voiceName, text, cacheDir })
+      const said = await speak({ key, model, voice: voiceName, text, cacheDir, tools })
       if (said.generation) generations.push(said.generation)
       return said.file
     }
@@ -533,7 +535,6 @@ export const voice = {
         }
         return { samples, ...(await settle()), next: 'hand in each sample as its own card: submit → audio { path }, the voice in the title' }
       }
-      const tools = ffmpegTools()
       const film = inWorkingCopy(args.film, { session, workspaceRoot }, 'film')
       const probe = await checkClip(film.abs, tools)
       if (!probe.hasPicture) throw new Error(`${film.rel} has no picture to voice`)

@@ -4,13 +4,13 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
 import { checkClip, ffmpegTools } from '../app/clip.js'
 import { spendOf } from '../app/model.js'
-import { costOf, linesOf, overrunMessage, overruns, spokenLength, voiceOf } from '../app/voice.js'
+import { costOf, linesOf, overrunMessage, overruns, speak, spokenLength, voiceOf } from '../app/voice.js'
 
 test('what takes time to say: letters, digits and Han characters — not spaces or punctuation', () => {
   assert.equal(spokenLength('在咕咕，开工就是一句话。'), 10)
@@ -234,5 +234,36 @@ test('purchases not priced in time keep their ids on the table; the next call pr
     assert.deepEqual(spendOf(board), { total: 0.004, byTool: { voice: 0.004 }, unknown: 0 })
   } finally {
     Object.assign(PRICING, saved)
+  }
+})
+
+test('a line is kept only once it is a sound, and kept per model, voice and text (review d00ad0e)', { skip: noFfmpeg }, async () => {
+  const cacheDir = mkdtempSync(path.join(data, 'cache-'))
+  const saved = globalThis.fetch
+  let bought = 0
+  let answer = 'json'
+  globalThis.fetch = async () => {
+    bought += 1
+    return answer === 'json'
+      ? new Response('{"error":{"message":"upstream busy"}}', { status: 200, headers: { 'content-type': 'application/json' } })
+      : answer === 'junk'
+        ? new Response('not an mp3 at all', { status: 200, headers: { 'content-type': 'audio/mpeg', 'x-generation-id': 'gen-junk' } })
+        : new Response(mp3(1), { status: 200, headers: { 'content-type': 'audio/mpeg', 'x-generation-id': `gen-${bought}` } })
+  }
+  try {
+    const line = { key: 'k', voice: 'eve', text: '同一句', cacheDir, tools }
+    await assert.rejects(speak({ ...line, model: 'm1' }), /answered application\/json, not a sound: \{"error":\{"message":"upstream busy"\}\}/)
+    answer = 'junk'
+    await assert.rejects(speak({ ...line, model: 'm1' }), /what the voice service sent cannot be played/)
+    assert.deepEqual(readdirSync(cacheDir), [], 'nothing kept from either answer')
+    answer = 'audio'
+    const first = await speak({ ...line, model: 'm1' })
+    assert.equal((await speak({ ...line, model: 'm1' })).generation, null, 'the same line again is not bought')
+    const other = await speak({ ...line, model: 'm2' })
+    assert.notEqual(other.file, first.file)
+    assert.ok(other.generation, 'another model is another line: bought')
+    assert.equal(bought, 4)
+  } finally {
+    globalThis.fetch = saved
   }
 })

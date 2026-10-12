@@ -1,7 +1,7 @@
 // 片场 voice: narration spoken with the person's voice model (OpenRouter, their key), laid on a film at the second each
 // line starts. The fit check and the advice are plain functions; speaking and laying are ffmpeg and one fetch each.
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { CLOCKS, parseLoudness, step } from './clip.js'
 import { VOICES, VOICE_MODEL } from './settings.js'
@@ -58,7 +58,7 @@ export function linesOf(lines, filmSeconds) {
  * One line spoken, as an mp3 file. The same text in the same voice and model is bought once: a retry after a refusal
  * pays only for the lines that changed. Answers the file, and the generation id of a new purchase (null from the cache).
  */
-export async function speak({ key, model = VOICE_MODEL, voice, text, cacheDir }) {
+export async function speak({ key, model = VOICE_MODEL, voice, text, cacheDir, tools }) {
   const name = createHash('sha256').update(JSON.stringify([model, voice, text])).digest('hex').slice(0, 32)
   mkdirSync(cacheDir, { recursive: true })
   const file = path.join(cacheDir, `${name}.mp3`)
@@ -75,7 +75,20 @@ export async function speak({ key, model = VOICE_MODEL, voice, text, cacheDir })
     const why = res.status === 402 ? "the person's OpenRouter account is out of credits" : `the voice service said HTTP ${res.status}: ${body.slice(0, 300)}`
     throw new Error(`No voice: ${why}.`)
   }
-  writeFileSync(file, Buffer.from(await res.arrayBuffer()))
+  // Kept only once it is a sound: a 200 carrying an error in JSON would otherwise be "the line" for good — an agent
+  // cannot clear the cache, and every retry would lay the same nothing.
+  const type = res.headers.get('content-type') ?? ''
+  const bytes = Buffer.from(await res.arrayBuffer())
+  if (!type.startsWith('audio/')) throw new Error(`No voice: the voice service answered ${type || 'with no type'}, not a sound: ${bytes.toString('utf8', 0, 200)}`)
+  const part = `${file}.part`
+  writeFileSync(part, bytes)
+  try {
+    if (!(await secondsOf(tools, part) > 0)) throw new Error('it has no length')
+  } catch (error) {
+    rmSync(part, { force: true })
+    throw new Error(`No voice: what the voice service sent cannot be played (${error.message}) — try again`)
+  }
+  renameSync(part, file)
   return { file, generation: res.headers.get('x-generation-id') }
 }
 
