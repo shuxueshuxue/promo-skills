@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MAX_SECONDS, checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
 import { PRICING, catchUp, costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
-import { KINDS, addRound, answered, feedbackOf, limitsOf, normalizeTable, picksSoFar, planAfter, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
+import { KINDS, addRound, answered, feedbackOf, limitsOf, normalizeTable, picksSoFar, planAfter, planOf, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, VOICE_MODEL, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .studio.json file the whisper you got is about.' }
@@ -90,16 +90,20 @@ function inWorkingCopy(given, stamp, what) {
   return { rel, abs, root, stat }
 }
 
+/** A file's sha256, read as a stream. */
+const sha256Of = (abs) =>
+  new Promise((resolve, reject) => {
+    const hash = createHash('sha256')
+    createReadStream(abs).on('data', (chunk) => hash.update(chunk)).on('end', () => resolve(hash.digest('hex'))).on('error', reject)
+  })
+
 /** The original of a clip, read where the agent works. */
 async function originalOf(video, { session, workspaceRoot }) {
   const { rel, abs, stat } = inWorkingCopy(video.path, { session, workspaceRoot }, 'video.path')
   if (stat.size > PLAYABLE_BYTES) {
     throw new Error(`${rel} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the table plays an original of up to 25 MB — hand in the 720p review render instead and keep the master where you rendered it`)
   }
-  const sha256 = await new Promise((resolve, reject) => {
-    const hash = createHash('sha256')
-    createReadStream(abs).on('data', (chunk) => hash.update(chunk)).on('end', () => resolve(hash.digest('hex'))).on('error', reject)
-  })
+  const sha256 = await sha256Of(abs)
   // Read here, where it was made: the check first (a clip nobody can hear is refused before anything is written),
   // then its cover and strip, made into a folder of their own for submit to put in the chat.
   const tools = ffmpegTools()
@@ -469,7 +473,7 @@ export const image = {
 
 export const voice = {
   description:
-    'Voice a film\'s narration, or voice samples to pick a voice from, with the voice model the person set up on the card table (OpenRouter, their key). A film: give the film in your working copy and its lines, each with the second it starts at; every line is spoken and laid at its start on one track at -16 LUFS over the film\'s own sound — kept: brought down to -24 LUFS when it is louder (never up), and some 15 dB under the narration while a line is spoken; a silent film gets the narration alone; the whole is only turned down, when it is over -14 LUFS or -1 dBTP (the picture is not touched) → <film>.voiced.mp4 in your folder for this table (board\'s yourFolder), which you hand in with submit → video. A line that runs into the next one is refused, saying by how much and about how many characters fit; a line already spoken the same way is not paid for again. Samples: give one line and several voices → one mp3 per voice, in your folder for this table (board\'s yourFolder); hand each in as its own card with submit → audio. What it paid is added to the table\'s total.',
+    'Voice a film\'s narration, or voice samples to pick a voice from, with the voice model the person set up on the card table (OpenRouter, their key). A film: give the film in your working copy and its lines, each with the second it starts at; every line is spoken and laid at its start on one track at -16 LUFS over the film\'s own sound — kept: brought down to -24 LUFS when it is louder (never up), and some 15 dB under the narration while a line is spoken; a silent film gets the narration alone; the whole is only turned down, when it is over -14 LUFS or -1 dBTP (the picture is not touched) → <film>-<its hash, 8>.voiced.mp4 in your folder for this table (board\'s yourFolder), which you hand in with submit → video. A line that runs into the next one is refused, saying by how much and about how many characters fit; a line already spoken the same way is not paid for again. Samples: give one line and several voices → one mp3 per voice, in your folder for this table (board\'s yourFolder); hand each in as its own card with submit → audio. What it paid is added to the table\'s total.',
   inputSchema: {
     type: 'object',
     required: ['board'],
@@ -548,9 +552,11 @@ export const voice = {
       if (problems.length) throw new Error(`The narration does not fit the film: ${overrunMessage(problems)}. Lines already spoken are kept: a retry pays only for what changed.`)
       // Into the caller's own folder, whoever's film it voices (review r4: next to the film, a writer voicing another's
       // cut wrote over that writer's .voiced.mp4).
+      // Named by the film and the first characters of its hash, as covers are: two films of one name, voiced by one
+      // writer, are two files (review r5: the second wrote over the first).
       const folder = await folderOf(args.board, agent, film.root)
       mkdirSync(folder, { recursive: true })
-      const out = path.join(folder, `${path.basename(film.rel, path.extname(film.rel))}.voiced.mp4`)
+      const out = path.join(folder, `${path.basename(film.rel, path.extname(film.rel))}-${(await sha256Of(film.abs)).slice(0, 8)}.voiced.mp4`)
       // A film with a sound of its own keeps it, lowered under the narration; a silent one gets the narration alone.
       const original = probe.hasSound && probe.lufs !== null && probe.lufs > -60 ? { lufs: probe.lufs } : null
       await layNarration({ tools, film: film.abs, lines, seconds: filmSeconds, out, original })
@@ -606,6 +612,8 @@ export const open_round = {
     const kind = String(round.kind ?? '')
     if (!KINDS.includes(kind)) throw new Error(`round.kind: one of ${KINDS.join(', ')}`)
     const slot = String(round.slot ?? '').trim() || kind
+    if (round.agents !== undefined && !Array.isArray(round.agents)) throw new Error('round.agents: the writers, a list of user:… of agents in this chat')
+    if (round.refs !== undefined && round.refs !== null && !Array.isArray(round.refs)) throw new Error('round.refs: the cards to build on, a list of card ids')
     const agents = [...new Set((round.agents ?? []).map(String))]
     const each = Math.max(1, Math.round(Number(round.each) || 1))
     // The round itself, against the table's limits: judged before anything is made or written — a refused first call
@@ -619,6 +627,8 @@ export const open_round = {
     // A chat is a string — its id, or the number people see. Any other value is not handed over by every gugu (a JSON
     // number on dev before PR-2), and would reach files.create unchecked, as the person's (review r4).
     if (args.chat !== undefined && typeof args.chat !== 'string') throw new Error('chat: this chat\'s id or its number, as a string ("211386", not 211386)')
+    // The plan's shape too, before anything is made: a bad one refused here, never after the round is on the table.
+    const plan = planOf(args.plan)
     let board = args.board
     let opening = board
     if (!board) {
@@ -642,11 +652,14 @@ export const open_round = {
       const limits = limitsOf(data)
       if (Object.keys(data.rounds).length >= limits.rounds) throw new Error(`this table has had its ${limits.rounds} rounds: ask the person in one line whether to go on (they can raise it in the table's settings)`)
       fits(limits)
+      // Everything worked out first; then the table is written, the round and its plan together.
+      const nextPlan = planAfter(data.plan, plan, kind, slot)
+      const refs = (round.refs ?? picksSoFar(data)).map(String)
       if (!data.lead) data.lead = agent
       const id = newId('r')
       const track = String(round.track ?? '').trim() || (kind === '宣传稿' || kind === '文案' ? '文字' : '片子')
-      const n = addRound(data, { id, track, kind, slot, ask: String(round.ask ?? '').trim(), each, agents, refs: (round.refs ?? picksSoFar(data)).map(String) }, agent, now())
-      data.plan = planAfter(data.plan, args.plan, kind, slot)
+      const n = addRound(data, { id, track, kind, slot, ask: String(round.ask ?? '').trim(), each, agents, refs }, agent, now())
+      data.plan = nextPlan
       await flushed(f)
       const told = []
       const notTold = []

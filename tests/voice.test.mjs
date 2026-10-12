@@ -212,8 +212,8 @@ test('a film voiced: each line at its start, at -16 LUFS, the picture untouched,
   const { board } = table()
   const p = film('cut.mp4', 6)
   const answer = await voice.run({ board: 'table', film: p, voice: 'rex', lines: [{ text: '第一句', at: 0.5 }, { text: '第二句', at: 3 }] }, call)
-  // In the caller's own folder for the table (review r4), not beside the film.
-  assert.equal(answer.path, 'studio/t/a/cut.voiced.mp4')
+  // In the caller's own folder for the table (review r4), not beside the film; named by the film and its hash (r5).
+  assert.match(answer.path, /^studio\/t\/a\/cut-[0-9a-f]{8}\.voiced\.mp4$/)
   assert.deepEqual(service.spoken, [['Rex', '第一句'], ['Rex', '第二句']])
   const out = path.join(work, answer.path)
   const check = await checkClip(out, tools)
@@ -374,12 +374,30 @@ test('a voiced film goes into the caller\'s own folder, whoever\'s film it voice
   execFileSync(tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=3:size=320x180:rate=10', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(work, cut)])
   const sha = (p) => createHash('sha256').update(readFileSync(path.join(work, p))).digest('hex')
   const mine = await voice.run({ board: 'table', film: cut, lines: [{ text: '甲', at: 0.5 }] }, a)
-  assert.equal(mine.path, 'studio/t/aaaaaaaa/cut.voiced.mp4')
+  assert.equal(mine.path, `studio/t/aaaaaaaa/cut-${sha(cut).slice(0, 8)}.voiced.mp4`)
   const before = sha(mine.path)
   // B voices A's cut: B's own folder gets it, A's voiced film is as it was.
   const theirs = await voice.run({ board: 'table', film: cut, voice: 'rex', lines: [{ text: '乙', at: 0.5 }] }, b)
-  assert.equal(theirs.path, 'studio/t/bbbbbbbb/cut.voiced.mp4')
+  assert.equal(theirs.path, `studio/t/bbbbbbbb/cut-${sha(cut).slice(0, 8)}.voiced.mp4`)
   assert.equal(sha(mine.path), before)
+})
+
+test('one writer voicing two films of one name gets two voiced films: each named by its film\'s hash (review r5)', { skip: noFfmpeg }, async () => {
+  key('test-key')
+  standIn()
+  table()
+  const sha = (p) => createHash('sha256').update(readFileSync(path.join(work, p))).digest('hex')
+  const make = (rel, seconds) => {
+    mkdirSync(path.dirname(path.join(work, rel)), { recursive: true })
+    execFileSync(tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', `testsrc=duration=${seconds}:size=320x180:rate=10`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(work, rel)])
+    return rel
+  }
+  const first = await voice.run({ board: 'table', film: make('studio/t/a/one/cut.mp4', 3), lines: [{ text: '甲', at: 0.5 }] }, call)
+  const kept = sha(first.path)
+  const second = await voice.run({ board: 'table', film: make('studio/t/a/two/cut.mp4', 4), lines: [{ text: '甲', at: 0.5 }] }, call)
+  assert.notEqual(second.path, first.path)
+  assert.equal(sha(first.path), kept)
+  assert.deepEqual([first.path, second.path].map((p) => p.replace(/-[0-9a-f]{8}\./, '-<sha8>.')), ['studio/t/a/cut-<sha8>.voiced.mp4', 'studio/t/a/cut-<sha8>.voiced.mp4'])
 })
 
 test('a film with a sound of its own keeps it: there between the lines, and 12–18 dB under the narration while a line is spoken (review d00ad0e)', { skip: noFfmpeg }, async () => {

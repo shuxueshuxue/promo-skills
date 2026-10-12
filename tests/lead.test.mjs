@@ -150,6 +150,30 @@ test('a chat that is not a string is refused before anything is made — a numbe
   assert.deepEqual([state.created.length, state.sent.length], [0, 0])
 })
 
+test('a plan that is not a list of { kind, slot } is refused before anything is made or written — on the first call and later (review r5)', async () => {
+  const BAD = ['分镜, 整片', { kind: '分镜', slot: '分镜' }, [null], ['分镜'], [{ slot: '开头' }], [{ kind: '不存在', slot: 'x' }], [{ kind: '整片' }, 7]]
+  const SHAPE = /plan: the rounds you mean to open after this one, as a list of \{ kind, slot \} — kind one of /
+  const state = chat()
+  for (const plan of BAD) await assert.rejects(open_round.run({ ...first, plan }, { agent: LEAD }), SHAPE)
+  assert.deepEqual([state.created.length, state.sent.length], [0, 0])
+  // Later, round 1 picked: each bad plan leaves the table as it was — no round 2 on it, nobody whispered, the plan kept.
+  const one = await open_round.run(first, { agent: LEAD })
+  hand(state, 'c1', one.round)
+  pick(state, 'c1')
+  const before = structuredClone(state.data)
+  const sent = state.sent.length
+  const next = { board: 'item-table', round: { kind: '分镜', slot: '分镜', agents: [A] } }
+  for (const plan of BAD) await assert.rejects(open_round.run({ ...next, plan }, { agent: LEAD }), SHAPE)
+  assert.deepEqual(state.data, before)
+  assert.equal(state.sent.length, sent)
+  // A round's writers or refs that are not lists: said so, nothing written either.
+  await assert.rejects(open_round.run({ ...next, round: { ...next.round, agents: A } }, { agent: LEAD }), /round\.agents: the writers, a list/)
+  await assert.rejects(open_round.run({ ...next, round: { ...next.round, refs: 'c1' } }, { agent: LEAD }), /round\.refs: the cards to build on, a list/)
+  assert.deepEqual(state.data, before)
+  // No plan (absent or null) is no plan; a good one opens the round.
+  assert.equal((await open_round.run({ ...next, plan: null }, { agent: LEAD })).n, 2)
+})
+
 test('the plan after a round: as given (slots trimmed, even when it names this round); else the first step that is this round leaves it, wherever it is (review r4)', async () => {
   const { planAfter } = await import('../app/model.js')
   const of = (plan) => plan.map((s) => `${s.kind}·${s.slot}`)
@@ -165,6 +189,8 @@ test('the plan after a round: as given (slots trimmed, even when it names this r
   assert.deepEqual(of(planAfter([{ kind: '分镜' }, { kind: '整片' }], undefined, '分镜', '分镜')), ['整片·整片'])
   // A round outside the plan leaves it as it was.
   assert.deepEqual(of(planAfter(plan, undefined, '分镜', '加一轮')), ['分镜·开头', '整片·整片'])
+  // A step on the table that is not one (the file edited by hand) is dropped, not thrown on (review r5).
+  assert.deepEqual(of(planAfter([null, 'x', { kind: '整片', slot: '整片' }], undefined, '分镜', '开头')), ['整片·整片'])
   // Through open_round: a plan given whose first step is this very round stays as given.
   const state = chat()
   const one = await open_round.run({ ...first, plan: [] }, { agent: LEAD })

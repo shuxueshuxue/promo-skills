@@ -191,21 +191,35 @@ export function addRound(data, { id, track, kind, slot, ask, each, agents, refs 
   return n
 }
 
-/** The picked card of every round so far: what a new round builds on unless it names its own. */
 /**
- * The lead's plan once it opens a round of this kind and slot. A plan given with the round is the rounds after it, kept
- * as given (slots trimmed). Without one, the first planned step that is this round — by kind and slot, wherever it is
- * in the plan (a round opened out of order) — leaves it; a round outside the plan leaves the plan as it was (review r3,
- * r4).
+ * A plan as the lead gives it: the rounds after this one, a list of { kind, slot } with a kind from KINDS. Anything else
+ * is refused as a whole, saying the shape — before the table is made or a round put on it (review r5: a string plan
+ * failed after the round was on the table, its writers never woken). Absent (or null): none given.
+ */
+export function planOf(given) {
+  if (given === undefined || given === null) return undefined
+  const shape = `plan: the rounds you mean to open after this one, as a list of { kind, slot } — kind one of ${KINDS.join(', ')}`
+  if (!Array.isArray(given)) throw new Error(`${shape}; not ${JSON.stringify(given).slice(0, 80)}`)
+  const bad = given.findIndex((s) => !s || typeof s !== 'object' || Array.isArray(s) || !KINDS.includes(String(s.kind)))
+  if (bad >= 0) throw new Error(`${shape}; step ${bad + 1} is ${JSON.stringify(given[bad] ?? null).slice(0, 80)}`)
+  return given
+}
+
+/**
+ * The lead's plan once it opens a round of this kind and slot. A plan given with the round (planOf) is the rounds after
+ * it, kept as given (slots trimmed). Without one, the first planned step that is this round — by kind and slot,
+ * wherever it is in the plan (a round opened out of order) — leaves it; a round outside the plan leaves the plan as it
+ * was; a step on the table that is not one (the file edited by hand) is dropped (review r3, r4, r5).
  */
 export function planAfter(plan, given, kind, slot) {
   const step = (s) => ({ kind: String(s.kind), slot: String(s.slot ?? '').trim() || String(s.kind), ...(s.track ? { track: String(s.track) } : {}) })
   if (given) return given.map(step)
-  const steps = (Array.isArray(plan) ? plan : []).map(step)
+  const steps = (Array.isArray(plan) ? plan : []).filter((s) => s && typeof s === 'object' && !Array.isArray(s)).map(step)
   const at = steps.findIndex((s) => s.kind === kind && s.slot === slot)
   return at < 0 ? steps : steps.filter((_, i) => i !== at)
 }
 
+/** The picked card of every round so far: what a new round builds on unless it names its own. */
 export const picksSoFar =(data) => roundsInOrder(data).map(([id]) => pickOfRound(data, id)).filter(Boolean)
 
 /** The first round the person has neither picked from nor skipped: what a lead waits for before the next one. */
