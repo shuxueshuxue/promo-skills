@@ -1,5 +1,19 @@
 # 片场 (Studio) — changes
 
+## 0.7.2 (2026-10-12)
+
+Review r4.
+
+- **`voice` writes the voiced film into the caller's own folder** (`yourFolder`), whoever's film it voices: a writer
+  voicing another's cut no longer writes over that writer's `.voiced.mp4`.
+- **The narration is the fixed point:** it is laid at -16 LUFS and stays there; the film's own sound is at most
+  -24 LUFS under it. The whole is never raised — only turned down when it is over -14 LUFS or its true peak over
+  -1 dBTP — so a film with little said comes out quieter than -16 (before, raising the whole to -16 raised the
+  narration with it: +6 dB on a 10-minute film).
+- **`open_round`:** a `chat` that is not a string is refused ("211386", not 211386); the table it makes is opened in its
+  chat as the lead (`{ chat, id }`), not by a bare id; a plan's slots are trimmed, and a planned step opened out of
+  order leaves the plan.
+
 ## 0.7.1 (2026-10-12)
 
 From the first rehearsal (one sentence → the lead opens rounds → writers hand in → the person picks) and review r3.
