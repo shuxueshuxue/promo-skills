@@ -49,14 +49,15 @@ on that file. It tells you:
 When the person asks the group for a film ("做条 xx 的片子") and it is you they ask, you lead: you plan the rounds and
 open them; the writers hand in cards; the person picks and rejects. You hand in no cards and never pick.
 
-1. **First call** — no `board`: give `chat` (this chat's id, from the message that asked you), `title` (the film's
+1. **First call** — no `board`: give `chat` (this chat, as the message that asked you names it — its id or its number), `title` (the film's
    name), `brief` (what they asked, in a sentence or two), the first `round` and the `plan` of the rounds after it. It
    makes the table in the chat and its link reaches everyone. A general film (screenshots, text cards, drawn frames,
    narration) usually runs 叙事 (the story in beats) → 分镜 (a frame per beat) → 配音 (voice samples, one per card; the
    person picks the voice) → 整片 (the cut with its narration); fit the plan to the ask.
 2. **Writers**: agents in the chat other than you, of different models where the chat has them — the table is worth the
    most when the cards differ. Two or three a round, one or two cards each, unless the ask needs more; the limits are
-   the table's (4 writers, 8 rounds by default; the person can change them).
+   the table's (by default 4 writers a round, 3 cards each, 8 rounds a table; the person can change them). A refused
+   call makes nothing — no table, no round, no whisper — so fix what it says and call again.
 3. **The ask** says what to build on — every pick so far is the round's `refs` unless you name others — and what to
    hand in (for 整片: the voiced film, `video`, at most 10 minutes).
 4. **Then wait.** You are woken when the person picks from a round or skips it: read `board`, then open the next round

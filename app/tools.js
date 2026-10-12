@@ -589,7 +589,9 @@ export const open_round = {
     required: ['round'],
     properties: {
       board: { ...BOARD, description: 'The table you lead. Leave it out on the first call: that call makes it.' },
-      chat: { type: 'string', description: 'First call only: this group\'s chat id (the chat of the message that asked you).' },
+      // gugu-chat: gugu hands the program the chat as the caller's own — its id, also when named by its number — and
+      // refuses one the caller is not in (review r3: a plain string reached files.create as the person's, any chat).
+      chat: { type: 'string', format: 'gugu-chat', description: 'First call only: this group (the chat of the message that asked you) — its id or its number.' },
       title: { type: 'string', description: 'First call only: the film\'s name — the table is named after it.' },
       brief: { type: 'string', description: 'First call only: what the person asked for, in a sentence or two.' },
       round: ROUND,
@@ -604,12 +606,21 @@ export const open_round = {
     const slot = String(round.slot ?? '').trim() || kind
     const agents = [...new Set((round.agents ?? []).map(String))]
     const each = Math.max(1, Math.round(Number(round.each) || 1))
+    // The round itself, against the table's limits: judged before anything is made or written — a refused first call
+    // leaves no table behind (review r3: four refusals made four empty tables).
+    const fits = (limits) => {
+      if (!agents.length) throw new Error('round.agents: the writers, as user:… of agents in this chat')
+      if (agents.length > limits.writers) throw new Error(`round.agents: at most ${limits.writers} writers a round (you named ${agents.length})`)
+      if (each > limits.each) throw new Error(`round.each: at most ${limits.each} cards each`)
+      if (agents.includes(agent)) throw new Error('round.agents: not you — the lead plans and opens rounds; the writers hand in the cards')
+    }
     let board = args.board
     if (!board) {
       const chat = String(args.chat ?? '').trim()
       const title = String(args.title ?? '').trim()
       const brief = String(args.brief ?? '').trim()
       if (!chat || !title || !brief) throw new Error('the first call makes the table: give chat (this group\'s chat id), title (the film\'s name) and brief (what the person asked for) — or give board, the table you lead')
+      fits(limitsOf({}))
       const entry = await gugu.files.create({ chat, name: `${title.replace(/[\/:*?"<>|]/g, ' ').trim()}.studio.json` }, { brief: { $text: brief }, lead: agent, plan: [], rounds: {}, cards: {}, feedback: {}, rules: {}, names: {}, spend: {} })
       board = entry.id
     }
@@ -622,17 +633,16 @@ export const open_round = {
       if (waiting) throw new Error(`round ${waiting.n} (${waiting.slot}) has no pick yet: the person picks, not you — you are woken when they do`)
       const limits = limitsOf(data)
       if (Object.keys(data.rounds).length >= limits.rounds) throw new Error(`this table has had its ${limits.rounds} rounds: ask the person in one line whether to go on (they can raise it in the table's settings)`)
-      if (!agents.length) throw new Error('round.agents: the writers, as user:… of agents in this chat')
-      if (agents.length > limits.writers) throw new Error(`round.agents: at most ${limits.writers} writers a round (you named ${agents.length})`)
-      if (each > limits.each) throw new Error(`round.each: at most ${limits.each} cards each`)
-      if (agents.includes(agent)) throw new Error('round.agents: not you — the lead plans and opens rounds; the writers hand in the cards')
+      fits(limits)
       if (!data.lead) data.lead = agent
-      if (args.plan) data.plan = args.plan.map((step) => ({ kind: String(step.kind), slot: String(step.slot ?? step.kind), ...(step.track ? { track: String(step.track) } : {}) }))
       const id = newId('r')
       const track = String(round.track ?? '').trim() || (kind === '宣传稿' || kind === '文案' ? '文字' : '片子')
       const n = addRound(data, { id, track, kind, slot, ask: String(round.ask ?? '').trim(), each, agents, refs: (round.refs ?? picksSoFar(data)).map(String) }, agent, now())
-      // The step just opened leaves the plan.
-      if (Array.isArray(data.plan) && data.plan[0]?.kind === kind) data.plan = data.plan.slice(1).map((step) => ({ ...step }))
+      // The plan is the rounds after this one. A plan given with this call is that, as given; without one, the step just
+      // opened leaves the plan — the first step, when this round is it (its kind and its slot: review r3, the next
+      // 分镜 went when a plan came with the first).
+      if (args.plan) data.plan = args.plan.map((step) => ({ kind: String(step.kind), slot: String(step.slot ?? step.kind), ...(step.track ? { track: String(step.track) } : {}) }))
+      else if (Array.isArray(data.plan) && data.plan[0]?.kind === kind && data.plan[0]?.slot === slot) data.plan = data.plan.slice(1).map((step) => ({ ...step }))
       await flushed(f)
       const told = []
       const notTold = []

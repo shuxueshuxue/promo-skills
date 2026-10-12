@@ -87,6 +87,9 @@ test('within the table\'s limits: writers a round, cards each, rounds a table �
   await assert.rejects(open_round.run({ ...first, round: { ...first.round, agents: [A, B, C, D, E] } }, { agent: LEAD }), /at most 4 writers a round \(you named 5\)/)
   await assert.rejects(open_round.run({ ...first, round: { ...first.round, each: 4 } }, { agent: LEAD }), /at most 3 cards each/)
   await assert.rejects(open_round.run({ ...first, round: { ...first.round, agents: [A, LEAD] } }, { agent: LEAD }), /not you — the lead plans and opens rounds/)
+  await assert.rejects(open_round.run({ ...first, round: { ...first.round, agents: [] } }, { agent: LEAD }), /round\.agents: the writers/)
+  // A refused first call makes nothing (review r3: four refusals left four empty tables of one name), whispers no one.
+  assert.deepEqual([state.created.length, state.sent.length], [0, 0])
   const one = await open_round.run(first, { agent: LEAD })
   state.data.limits = { rounds: 1 }
   hand(state, 'c1', one.round)
@@ -103,6 +106,30 @@ test('the first call needs the chat, a title and the brief; a writer it cannot r
   assert.deepEqual(answer.told, [A])
   assert.deepEqual(answer.notTold, [{ writer: B, why: 'not in this chat' }])
   assert.equal(state.sent.length, 1)
+})
+
+test('a plan given with a round is the rounds after it, as given; without one, the round leaves the plan only when it is its first step (review r3)', async () => {
+  const opened = async (plan, round, given) => {
+    const state = chat()
+    const one = await open_round.run({ ...first, plan }, { agent: LEAD })
+    hand(state, 'c1', one.round)
+    pick(state, 'c1')
+    const two = await open_round.run({ board: 'item-table', round: { agents: [A], ...round }, ...(given ? { plan: given } : {}) }, { agent: LEAD })
+    return two.plan.map((s) => `${s.kind}·${s.slot}`)
+  }
+  const start = { kind: '分镜', slot: '开头' }
+  // The review's reading: 分镜·开头 opened with a plan of 分镜·结尾 and 整片 kept 整片 alone — 结尾 was swallowed.
+  assert.deepEqual(await opened([], start, [{ kind: '分镜', slot: '结尾' }, { kind: '整片', slot: '整片' }]), ['分镜·结尾', '整片·整片'])
+  // No plan given: the planned 分镜·结尾 is not this round (the same kind, another slot), so it stays.
+  assert.deepEqual(await opened([{ kind: '分镜', slot: '结尾' }, { kind: '整片', slot: '整片' }], start), ['分镜·结尾', '整片·整片'])
+  // No plan given, and this round is the plan's first step: it leaves.
+  assert.deepEqual(await opened([{ kind: '分镜', slot: '开头' }, { kind: '整片', slot: '整片' }], start), ['整片·整片'])
+})
+
+test('the chat of the first call is a gugu-chat: gugu hands it over as the caller\'s own, also by its number (review r3)', () => {
+  const { properties } = open_round.inputSchema
+  assert.equal(properties.chat.format, 'gugu-chat')
+  assert.equal(properties.board.format, 'gugu-file')
 })
 
 test('rounds are numbered in the order they are put on the table, whoever opens them', () => {
