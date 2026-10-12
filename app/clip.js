@@ -17,9 +17,10 @@ export const MAX_SECONDS = 10 * 60
  */
 export async function step(name, file, args, timeout) {
   try {
-    return await execute(file, args, { timeout, maxBuffer: 64 * 1024 * 1024 })
+    // SIGKILL: an ffmpeg stuck in a read does not always heed SIGTERM.
+    return await execute(file, args, { timeout, killSignal: 'SIGKILL', maxBuffer: 64 * 1024 * 1024 })
   } catch (error) {
-    if (error.killed || error.signal === 'SIGTERM') throw new Error(`${name} took longer than ${Math.round(timeout / 1000)} s on ${hostname()} and was stopped`)
+    if (error.killed || error.signal === 'SIGKILL') throw new Error(`${name} took longer than ${Math.round(timeout / 1000)} s on ${hostname()} and was stopped`)
     const last = String(error.stderr || error.message || '').split('\n').map((line) => line.trim()).filter(Boolean).pop() ?? 'no reason given'
     throw new Error(`${name} failed on ${hostname()}: ${withoutPaths(last)}`)
   }

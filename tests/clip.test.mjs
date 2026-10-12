@@ -45,6 +45,12 @@ test('a step on a clock: one that runs too long is stopped and said as the step 
   await assert.rejects(step('measuring the sound', process.execPath, ['-e', 'setTimeout(() => {}, 10000)'], 1000), /^Error: measuring the sound took longer than 1 s on .+ and was stopped$/)
 })
 
+test('a step that ignores SIGTERM is still stopped on its clock', async () => {
+  const started = Date.now()
+  await assert.rejects(step('looking for black screens', process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setTimeout(() => {}, 10000)'], 1000), /looking for black screens took longer than 1 s/)
+  assert.ok(Date.now() - started < 4000, `${Date.now() - started} ms`)
+})
+
 test('a step that fails says why in one line, with no path on this machine in it', async () => {
   const failing = ['-e', 'console.error("ffmpeg version x"); console.error("/Users/someone/work/renders/film.mp4: Invalid data found"); process.exit(1)']
   const refused = await step('making the cover', process.execPath, failing, 5000).catch((error) => error)
