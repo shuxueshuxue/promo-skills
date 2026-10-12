@@ -164,6 +164,12 @@ export async function secondsOf(tools, file) {
 
 /** How far under the narration the film's own sound sits while a line is spoken (the review asked 12–18 dB). */
 export const DUCK_UNDER = 15
+/**
+ * The film's own sound is first brought to this loudness when it is louder — never raised — so the narration sits on
+ * every film the same way: 8 dB over its sound between the lines, DUCK_UNDER over it while a line is spoken (review r3:
+ * the louder the film, the more its sound took the narration down with it, -8.6 dB on a -5 LUFS film).
+ */
+export const BED_LUFS = -24
 /** The film's own sound goes down this long before a line starts, and comes back up over this long after it ends. */
 const DUCK_IN = 0.15
 const DUCK_OUT = 0.3
@@ -181,10 +187,10 @@ export function duckExpression(spans, under) {
 
 /**
  * The film with its narration: every line at its start on one mono track brought to TARGET_LUFS (measured alone). A film
- * with a sound of its own (`original`: its loudness) keeps it, lowered while a line is spoken to DUCK_UNDER dB under the
- * narration — never raised, never cut out between the lines; a film without one gets the narration alone. The whole is
- * measured once written and corrected once with one gain for both, and a limiter keeps the peaks. The picture is
- * copied, not re-encoded.
+ * with a sound of its own (`original`: its loudness) keeps it: brought down to BED_LUFS when it is louder (never up), and
+ * while a line is spoken DUCK_UNDER dB under the narration — never cut out between the lines; a film without one gets
+ * the narration alone. The whole is measured once written and corrected once with one gain for both (a small one: the
+ * sound under it is at most BED_LUFS), and a limiter keeps the peaks. The picture is copied, not re-encoded.
  */
 export async function layNarration({ tools, film, lines, seconds, out, original = null }) {
   const inputs = lines.flatMap((line) => ['-i', line.file])
@@ -194,12 +200,14 @@ export async function layNarration({ tools, film, lines, seconds, out, original 
   const raw = await loudness('measuring the narration', ['-i', film, ...inputs, '-filter_complex', `${mix},ebur128`, '-f', 'null', '-'])
   if (raw === null) throw new Error('the narration came out silent — try again')
   const narration = TARGET_LUFS - raw
-  // The film's own sound under a spoken line: DUCK_UNDER dB under the narration, or as it is when it is quieter already.
-  const under = original ? 10 ** (Math.min(0, TARGET_LUFS - DUCK_UNDER - original.lufs) / 20) : 0
+  // The film's own sound: down to BED_LUFS when louder; then, under a spoken line, DUCK_UNDER dB under the narration —
+  // or as it is when it is quieter already.
+  const bed = original ? Math.min(0, BED_LUFS - original.lufs) : 0
+  const under = original ? 10 ** (Math.min(0, TARGET_LUFS - DUCK_UNDER - (original.lufs + bed)) / 20) : 0
   const spans = lines.map((line) => [line.at, line.at + line.seconds])
   const graph = (all) =>
     original
-      ? `${mix},volume=${narration}dB[narration];[0:a]aresample=48000,aformat=channel_layouts=stereo,volume='${duckExpression(spans, under)}':eval=frame,apad,atrim=0:${seconds}[bed];` +
+      ? `${mix},volume=${narration}dB[narration];[0:a]aresample=48000,aformat=channel_layouts=stereo,volume=${bed}dB,volume='${duckExpression(spans, under)}':eval=frame,apad,atrim=0:${seconds}[bed];` +
         `[bed][narration]amix=inputs=2:normalize=0:duration=first,volume=${all}dB,alimiter=limit=0.84:level=false[out]`
       : `${mix},volume=${narration + all}dB,alimiter=limit=0.84:level=false[out]`
   const write = (all) =>
