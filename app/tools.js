@@ -1,12 +1,14 @@
-// 抽卡台's tools for agents (guide apps-programs): every export is one tool, `agent` is stamped by gugu — never asked for.
-// The card table is the file the agent was woken about; what to do with it is the choukatai skill (skills/choukatai).
+// 片场's tools for agents (guide apps-programs): every export is one tool, `agent` is stamped by gugu — never asked for.
+// The card table is the file the agent was woken about; what to do with it is the studio skill (skills/studio).
 import { createHash } from 'node:crypto'
-import { createReadStream, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { createReadStream, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
 import { answered, feedbackOf, normalizeTable, roundsInOrder, slotOf, statusOf, workingCopyPath } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
-const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .chouka.json file the whisper you got is about.' }
+const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .studio.json file the whisper you got is about.' }
 const now = () => new Date().toISOString()
 const newId = (prefix) => `${prefix}${crypto.randomUUID().slice(0, 8)}`
 const short = (text, n = 280) => (text && text.length > n ? `${text.slice(0, n)}…` : text ?? '')
@@ -36,16 +38,11 @@ function flushed(f) {
 /** A clip handed in with `video`: its original stays in the agent's working copy; the card keeps where, its size and hash. */
 const VIDEO = {
   type: 'object',
-  required: ['path', 'cover', 'strip'],
+  required: ['path'],
   properties: {
     path: { type: 'string', description: 'The review render (720p, at most 25 MB) in your working copy, relative to it (renders/cut.720p.mp4). It stays there — the card keeps where it is, not a copy.' },
-    cover: { type: 'string', description: 'Item id of one frame of it (a jpg, the frame at 5 s) you put in this chat with workspace_upload_file.' },
-    strip: { type: 'string', description: 'Item id of its keyframes in one picture (8 frames side by side, a jpg), in this chat.' },
-    seconds: { type: 'number' },
-    width: { type: 'number' },
-    height: { type: 'number' },
   },
-  description: 'A clip whose original stays on your machine: only the cover and the strip go to the chat. Instead of putting the clip itself in files.',
+  description: 'A clip whose original stays on your machine. submit reads it here: checks it (a clip nobody can hear is refused), makes its cover and its strip of frames and puts those two in the chat. Instead of putting the clip itself in files.',
 }
 
 /** The largest file an App can open (gugu's open-file limit): a bigger original could be kept but never played. */
@@ -76,17 +73,40 @@ async function originalOf(video, { session, workspaceRoot }) {
     const hash = createHash('sha256')
     createReadStream(abs).on('data', (chunk) => hash.update(chunk)).on('end', () => resolve(hash.digest('hex'))).on('error', reject)
   })
-  const number = (n) => (Number(n) > 0 ? Number(n) : null)
+  // Read here, where it was made: the check first (a clip nobody can hear is refused before anything is written),
+  // then its cover and strip, made into a folder of their own for submit to put in the chat.
+  const tools = ffmpegTools()
+  const check = await checkClip(abs, tools)
+  const refusal = refusalOf(check)
+  if (refusal) throw new Error(`${rel} was not handed in: ${refusal}`)
+  const dir = mkdtempSync(path.join(tmpdir(), 'studio-clip-'))
+  const name = path.basename(rel, path.extname(rel))
+  const round = (n) => Math.round(n * 100) / 100
   return {
-    cover: String(video.cover),
-    strip: String(video.strip),
-    seconds: number(video.seconds),
-    width: number(video.width),
-    height: number(video.height),
-    bytes: stat.size,
-    sha256,
-    at: { session, path: rel },
+    pictures: {
+      dir,
+      cover: await makeCover(abs, path.join(dir, `${name}-cover.jpg`), check.seconds, tools),
+      strip: await makeStrip(abs, path.join(dir, `${name}-strip.jpg`), check.seconds, tools),
+    },
+    video: {
+      seconds: round(check.seconds),
+      width: check.width,
+      height: check.height,
+      bytes: stat.size,
+      sha256,
+      at: { session, path: rel },
+      check: { lufs: check.lufs, peak: check.peak, silence: check.silence, black: check.black.map((s) => s.map(round)), white: check.white.map((s) => s.map(round)) },
+    },
   }
+}
+
+/** The cover and the strip of a clip, put in the table's chat: their item ids, for the card. */
+async function picturesIn(chat, { cover, strip }) {
+  const file = (p) => new File([readFileSync(p)], path.basename(p), { type: 'image/jpeg' })
+  const entries = await gugu.files.upload({ chat }, [file(cover), file(strip)])
+  const [coverId, stripId] = entries.map((entry) => entry.id)
+  if (!coverId || !stripId) throw new Error('the cover and strip did not reach the chat — try again')
+  return { cover: coverId, strip: stripId }
 }
 
 const cardLine = (data, id, card) => ({
@@ -110,7 +130,7 @@ const cardLine = (data, id, card) => ({
 
 export const board = {
   description:
-    'Read a 抽卡台 card table: the brief, the rounds that ask you for cards, the rules added on this table, every card with its status and notes, and the feedback on your own cards (answer a reject with a new version of that card). Call it first whenever you are woken about a card table or asked to look at its cards.',
+    'Read a Studio (片场) card table: the brief, the rounds that ask you for cards, the rules added on this table, every card with its status and notes, and the feedback on your own cards (answer a reject with a new version of that card). Call it first whenever you are woken about a card table or asked to look at its cards.',
   inputSchema: { type: 'object', required: ['board'], properties: { board: BOARD } },
   annotations: { readOnlyHint: true },
   async run({ board: id }, { agent }) {
@@ -156,7 +176,7 @@ export const board = {
 
 export const submit = {
   description:
-    'Hand in one card for a round of a 抽卡台 card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat first with workspace_upload_file (give their item ids). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card.',
+    'Hand in one card for a round of a Studio (片场) card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat first with workspace_upload_file (give their item ids), and/or a clip (`video`: just its path in your working copy — submit checks it and makes its cover and strip). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card.',
   inputSchema: {
     type: 'object',
     required: ['board', 'round'],
@@ -179,28 +199,34 @@ export const submit = {
   },
   async run(args, { agent, session, workspaceRoot }) {
     if (!agent) throw new Error('submit is for agents (gugu stamps who calls)')
-    // Read before the table is opened: a clip that is not there is said before anything is written.
-    const video = args.video ? await originalOf(args.video, { session, workspaceRoot }) : null
+    // Read before the table is opened: a clip that is not there, or that nobody can hear, is said before anything is written.
+    const clip = args.video ? await originalOf(args.video, { session, workspaceRoot }) : null
     // A clip already on the card, as plain values (the table's own objects are live).
-    const plainVideo = (v) => (v ? { ...v, at: { ...v.at } } : null)
-    const f = await openBoard(args.board)
+    const plainVideo = (v) => (v ? JSON.parse(JSON.stringify(v)) : null)
+    let f = null
     try {
+      f = await openBoard(args.board)
       const round = f.data.rounds[args.round]
       if (!round) throw new Error(`no round ${args.round} on this table — see board → askedOfYou`)
-      const at = now()
       const own = args.card && f.data.cards[args.card]?.by === agent ? args.card : null
       // A new version keeps what it does not say again (a revision that only redraws keeps its title and text).
       const prev = own ? f.data.cards[own] : {}
+      const title = String(args.title ?? prev.title ?? '')
+      const text = String(args.text ?? prev.text ?? '')
+      const files = (args.files ?? prev.files ?? []).map(String)
+      if (!title) throw new Error('a card needs a title')
+      if (!text && !files.length && !clip && !prev.video) throw new Error('a card needs text, files or a video')
+      // The last thing before the card is written: nothing reaches the chat for a card that is refused.
+      const video = clip ? { ...(await picturesIn(f.entry.chat, clip.pictures)), ...clip.video } : null
+      const at = now()
       const fields = {
-        title: String(args.title ?? prev.title ?? ''),
-        text: String(args.text ?? prev.text ?? ''),
-        files: (args.files ?? prev.files ?? []).map(String),
+        title,
+        text,
+        files,
         model: args.model ? String(args.model) : prev.model ?? null,
         cost: { usd: Number(args.cost?.usd) || 0, seconds: Number(args.cost?.seconds) || 0, tokens: Number(args.cost?.tokens) || 0 },
         ...((video ?? prev.video) ? { video: video ?? plainVideo(prev.video) } : {}),
       }
-      if (!fields.title) throw new Error('a card needs a title')
-      if (!fields.text && !fields.files.length && !fields.video) throw new Error('a card needs text, files or a video')
       let id
       if (own) {
         id = own
@@ -215,16 +241,18 @@ export const submit = {
         f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, at, updatedAt: at }
       }
       await flushed(f)
-      return { card: id, version: f.data.cards[id].version, revised: Boolean(own) }
+      return { card: id, version: f.data.cards[id].version, revised: Boolean(own), ...(video ? { check: video.check } : {}) }
     } finally {
-      f.close()
+      f?.close()
+      // The cover and strip were made for this call only: in the chat now, or not wanted.
+      if (clip) rmSync(clip.pictures.dir, { recursive: true, force: true })
     }
   },
 }
 
 export const note = {
   description:
-    'Annotate one card of a 抽卡台 card table, as a person in the chat would with 批注: one or two lines on what works and what to change, citing a rule when one applies (§n of director-rulings.md, or a rule added on the table). It wakes nobody: the author reads it on the table. Use it when someone asks you to look at the cards; the person picks and rejects, you only say what you see. One call per card.',
+    'Annotate one card of a Studio (片场) card table, as a person in the chat would with 批注: one or two lines on what works and what to change, citing a rule when one applies (§n of director-rulings.md, or a rule added on the table). It wakes nobody: the author reads it on the table. Use it when someone asks you to look at the cards; the person picks and rejects, you only say what you see. One call per card.',
   inputSchema: {
     type: 'object',
     required: ['board', 'card', 'comment'],
@@ -264,7 +292,7 @@ const keyOf = (settings) => (typeof settings.openrouterKey === 'string' ? settin
 
 /** The settings box's 「保存并检查」: OpenRouter's key endpoint answers without making (or charging for) an image. */
 export const check_image_key = {
-  description: 'Check the OpenRouter key in 抽卡台\'s settings (the card table\'s settings box only).',
+  description: 'Check the OpenRouter key in Studio\'s settings (the card table\'s settings box only).',
   inputSchema: { type: 'object', properties: {} },
   annotations: { readOnlyHint: true },
   _meta: { ui: { visibility: ['app'] } },
@@ -285,7 +313,7 @@ export const check_image_key = {
 
 export const image = {
   description:
-    'Make one image for a 抽卡台 card — a storyboard frame, a poster, a key visual — with the image model the person set up in the card table (OpenRouter, their key). Answers a local file path: put it in the chat with workspace_upload_file (mime_type image/png), then give its item id in submit → files, and its cost in submit → cost.usd. Use it whichever harness you are; a harness with its own image tool may use that instead.',
+    'Make one image for a Studio (片场) card — a storyboard frame, a poster, a key visual — with the image model the person set up in the card table (OpenRouter, their key). Answers a local file path: put it in the chat with workspace_upload_file (mime_type image/png), then give its item id in submit → files, and its cost in submit → cost.usd. Use it whichever harness you are; a harness with its own image tool may use that instead.',
   inputSchema: {
     type: 'object',
     required: ['prompt'],

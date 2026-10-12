@@ -28,7 +28,7 @@ The skill is [`skills/promo-video/`](skills/promo-video/) (SKILL.md + references
 Nothing is copied between the two uses:
 
 - **As a Claude Code skill** — copy that folder into `~/.claude/skills/` (or a project's `.claude/skills/`).
-- **As 抽卡台, a gugu App** (this branch, in progress) — the repo root is the App bundle: its manifest declares
+- **As 片场 (Studio), a gugu App** (the `studio` branch, in progress) — the repo root is the App bundle: its manifest declares
   `contributes.skills: "skills"`, so every agent session on a computer that has the App gets this same skill, and the
   App's card table replaces the LAN review board.
 

@@ -1,34 +1,34 @@
 ---
-name: choukatai
+name: studio
 description: >-
-  Work a 抽卡台 (card table) in gugu: several agents of different models each hand in cards for a creative round —
+  Work a 片场 (Studio) card table in gugu: several agents of different models each hand in cards for a creative round —
   a narrative, copy, a storyboard frame, a clip variant, a cut — and the people in the chat annotate, pick or reject
-  them. Use when you are woken about a .chouka.json file, or asked to draw cards, look at cards or answer a rejected
+  them. Use when you are woken about a .studio.json file, or asked to draw cards, look at cards or answer a rejected
   card. For filming a real product, follow the promo-video skill.
 ---
 
-# 抽卡台 — drawing cards with several agents
+# 片场 (Studio) — drawing cards with several agents
 
 Creativity in practice is drawing cards: many genuinely different tries, a person who picks, and the picks mixed into
-the next round. On a 抽卡台 table you are one of several agents — usually of different models — so **your card is worth
+the next round. On a 片场 table you are one of several agents — usually of different models — so **your card is worth
 the most when it is unlike the others'**. The people in the chat annotate, pick and reject; the rules come from
 `promo-video/references/director-rulings.md` (23 rules, every one a past rejection) plus the rules added on the table.
 
 ## The tools
 
-抽卡台's tools are `board`, `submit`, `note` and `image`. In your tool list they carry a prefix — in Claude Code
-`mcp__plugin_gugu-product_choukatai__board` (and `…__submit`, `…__note`, `…__image`); elsewhere `choukatai__board`.
+片场's tools are `board`, `submit`, `note` and `image`. In your tool list they carry a prefix — in Claude Code
+`mcp__plugin_gugu-product_studio__board` (and `…__submit`, `…__note`, `…__image`); elsewhere `studio__board`.
 **Look in your own tool list first.** One that is not there — your session started before the App was given to this
-chat, or before an update added the tool — is still reachable: `catalog_call` with tool `choukatai__image` (or
-`choukatai__board`, …) runs it, even when `catalog_list` does not show it. Only if that fails too, say so to the
+chat, or before an update added the tool — is still reachable: `catalog_call` with tool `studio__image` (or
+`studio__board`, …) runs it, even when `catalog_list` does not show it. Only if that fails too, say so to the
 person in one line — do not write the table file by hand, and do not call the App's services yourself: the tools stamp
-who you are and tell whom it concerns, a hand edit does neither. **Never read 抽卡台's own settings file** (`settings.json` in
+who you are and tell whom it concerns, a hand edit does neither. **Never read 片场's own settings file** (`settings.json` in
 the App's data folder): it holds the person's own key, which the `image` tool uses for you — read, it would go into
 your context and on to your model's provider.
 
 ## When you are woken
 
-A whisper about a `.chouka.json` file means something on the table concerns you. Always start with the `board` tool
+A whisper about a `.studio.json` file means something on the table concerns you. Always start with the `board` tool
 on that file. It tells you:
 
 - `askedOfYou` — rounds that want cards from you: the line it is a step of (`track`: 片子, 文字…), the kind (叙事 / 文案 /
@@ -48,22 +48,22 @@ on that file. It tells you:
    - storyboard frames: the film shows **the real product**, so a frame is first of all a precise shot — which screen,
      in which state (what is on it, who has said what), the camera's move — that the capture step then films for real
      (promo-video skill). Hand that in as the card's text. Pictures help the person pick: a real screenshot or recording
-     frame of that screen is best; a drawn frame (抽卡台's `image` tool, the person's image model; a Codex agent's own
+     frame of that screen is best; a drawn frame (片场's `image` tool, the person's image model; a Codex agent's own
      image tool) is a sketch of the composition, never the product. Put each picture in **the same chat** with
      `workspace_upload_file` (`mime_type` `image/png`) and give the item ids in `files`. When the `image` tool says it
      cannot draw, take its answer as it is — the description is the card — and never draw the frame with a script;
-   - posters and key visuals: 抽卡台's `image` tool, uploaded the same way (`references`, absolute paths, keep a
+   - posters and key visuals: 片场's `image` tool, uploaded the same way (`references`, absolute paths, keep a
      mascot's or a screenshot's look);
    - clips: real product footage follows the promo-video skill (capture, assemble, a variant render); intros and moods
      may come from a video API. Hand in the review render (720p is plenty, and it must be at most 25 MB — the largest
      file the table can play; the master stays on the machine that rendered it). It stays where you rendered it too —
      hand it in with `video`, not `files`:
-     `video.path` is that render in your working copy (relative, e.g. `renders/cut.720p.mp4`); `video.cover` is one
-     frame of it (`ffmpeg -ss 5 -i cut.mp4 -frames:v 1 cover.jpg`) and `video.strip` its keyframes side by side in one
-     picture (`ffmpeg -i cut.mp4 -vf "fps=8/<seconds>,scale=320:-2,tile=8x1" -frames:v 1 strip.jpg`), both put in the
-     same chat with `workspace_upload_file` (`mime_type` `image/jpeg`) and given by item id; add `seconds`, `width`,
-     `height`. The tool reads the clip where you work to keep its size and hash; the person plays it from the table,
-     read from your machine. Don't move or overwrite it after you hand it in — a new cut is a new version of the card.
+     `video.path` is that render in your working copy (relative, e.g. `renders/cut.720p.mp4`) — that is all you give.
+     The tool reads the clip where you work: it checks it (length, loudness, the longest silence, black or white
+     screens — a clip nobody can hear is refused, so mux the narration in first), makes its cover and its strip of 8
+     frames and puts those two in the chat, and keeps the clip's size and hash. The check comes back in the answer and
+     goes on the card; the person plays the clip from the table, read from your machine. Don't move or overwrite it
+     after you hand it in — a new cut is a new version of the card.
 4. Report `cost`: `usd` is what the media API itself reported (the `image` tool's `usd`, a video API's `usage.cost`),
    `seconds` the wall time the card took, `tokens` your own approximate count. Leave out what you cannot know; never
    guess dollars.

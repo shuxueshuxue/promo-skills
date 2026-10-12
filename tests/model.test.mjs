@@ -1,7 +1,7 @@
-// 抽卡台 model: the table made whole on open, and a card's history. Run: node --test tests/*.mjs
+// 片场 model: the table made whole on open, and a card's history. Run: node --test tests/*.mjs
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { answered, eventsOf, feedbackOf, normalizeTable, pickOfRound, sentBack, statusOf, tracksInOrder } from '../app/model.js'
+import { answered, checkLine, eventsOf, feedbackOf, normalizeTable, pickOfRound, sentBack, statusOf, tracksInOrder } from '../app/model.js'
 
 /** A table as 0.2.0 wrote it: rounds without a line, a card revised before versions were kept. */
 const before030 = () => ({
@@ -146,4 +146,16 @@ test('a clip keeps its original where it was made: the card shows its cover firs
   for (const bad of ['', '/abs/cut.mp4', 'C:\\x\\cut.mp4', '\\\\host\\share\\cut.mp4', '../cut.mp4', 'a/../../cut.mp4']) {
     assert.equal(workingCopyPath(bad), null, bad)
   }
+})
+
+test('a clip\'s check as one line on its card: loudness, the longest silence, blank screens only when there are any', () => {
+  assert.equal(checkLine(null), '')
+  assert.equal(
+    checkLine({ lufs: -16.3, peak: -1.2, silence: { seconds: 2.5, at: 26.4 }, black: [], white: [] }),
+    '响度 -16.3 LUFS · 最长无声 2.5 秒（26.4 秒处） · 没有黑屏白屏',
+  )
+  assert.equal(
+    checkLine({ lufs: -18, silence: { seconds: 0.1, at: 3 }, black: [[0, 1.5], [10, 10.5]], white: [] }),
+    '响度 -18 LUFS · 黑屏 2 秒（0 秒、10 秒处）',
+  )
 })

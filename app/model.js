@@ -1,6 +1,6 @@
-// 抽卡台's data, read the same way by the card table (app.js) and the agents' tools (tools.js).
+// 片场's data, read the same way by the card table (app.js) and the agents' tools (tools.js).
 //
-// The table is one live JSON file of a chat (`*.chouka.json`):
+// The table is one live JSON file of a chat (`*.studio.json`):
 //   brief     what the table is for ({"$text": …}: typed in together)
 //   rounds    { [id]: { n, track, kind, slot, ask, each, agents: [user:…], refs: [cardId], by, at } }
 //             track: the line the round is a step of (「片子」「文字」…), chosen when the round is opened
@@ -9,9 +9,10 @@
 //             versions: the earlier versions a new one replaced (the current one is the card itself); absent on a card
 //             that was never revised from 0.3.0 on
 //             video (0.4.0): a clip whose original stays where it was made — { cover: itemId, strip: itemId, seconds,
-//             width, height, bytes, sha256, at: { session, path } }: the cover (a frame) and the strip (frames in one
-//             picture) are in the chat; the original is the file `path` of that session's working copy, on the machine
-//             that made it. A card has files, a video, or both.
+//             width, height, bytes, sha256, at: { session, path }, check }: the cover (a frame) and the strip (frames in
+//             one picture) are in the chat, both made by submit from the clip; the original is the file `path` of that
+//             session's working copy, on the machine that made it. check: what submit measured there — { lufs, peak,
+//             silence: { seconds, at }, black: [[from, to]], white: [[from, to]] }. A card has files, a video, or both.
 //   feedback  { [id]: { card, verdict: note | reject | pick, comment, who, ts } }   append-only, as review/feedback.jsonl was;
 //             a note is anyone's — a person's or an agent's they asked to look; reject and pick are the person's
 //   rules     { [id]: { text, from, by, at } }                   rules added on this table, on top of director-rulings.md
@@ -20,7 +21,7 @@
 
 export const KINDS = ['叙事', '文案', '分镜', '变式', '片头', '整片', '宣传稿', '其他']
 /** What a whisper about a card of this kind adds: pictures come from the App's own image tool, whoever draws. */
-export const drawHint = (kind) => (kind === '分镜' ? '画面用抽卡台的 image 工具出。' : '')
+export const drawHint = (kind) => (kind === '分镜' ? '画面用片场的 image 工具出。' : '')
 
 const time = (iso) => Date.parse(iso ?? '') || 0
 
@@ -162,6 +163,20 @@ export function roundComplete(data, roundId) {
 }
 
 /** The picture a card shows first (its spine dot, its first face): a clip's cover, else its first file. */
+/** A clip's check as one line on its card: loudness, the longest silence, blank screens (only when there are any). */
+export function checkLine(check) {
+  if (!check) return ''
+  const s = (n) => `${Math.round(n * 10) / 10} 秒`
+  const blanks = (name, list) => (list?.length ? `${name} ${s(list.reduce((sum, [a, b]) => sum + (b - a), 0))}（${list.map(([a]) => s(a)).slice(0, 3).join('、')}处）` : '')
+  return [
+    check.lufs === null || check.lufs === undefined ? '' : `响度 ${check.lufs} LUFS`,
+    check.silence?.seconds >= 0.3 ? `最长无声 ${s(check.silence.seconds)}（${s(check.silence.at)}处）` : '',
+    blanks('黑屏', check.black),
+    blanks('白屏', check.white),
+    !check.black?.length && !check.white?.length ? '没有黑屏白屏' : '',
+  ].filter(Boolean).join(' · ')
+}
+
 export const coverOf = (card) => card?.video?.cover ?? card?.files?.[0] ?? null
 
 /**

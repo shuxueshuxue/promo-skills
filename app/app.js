@@ -1,4 +1,4 @@
-// 抽卡台 — the card table. Several agents (different models, different harnesses) each hand in cards for a round; the
+// 片场 (Studio) — the card table. Several agents (different models, different harnesses) each hand in cards for a round; the
 // people in the chat annotate them (批注 — an agent they ask to look annotates the same way), pick one or send one back for
 // a new version. Picked cards are what the next round mixes. Review rules are promo-skills'
 // (skills/promo-video/references/review-loop.md): reject or annotate, never "approve"; a reject is answered by a newer
@@ -9,7 +9,7 @@
 // Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
 // their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, TRACKS, coverOf, drawHint, eventsOf, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, tracksInOrder } from './model.js'
+import { KINDS, TRACKS, checkLine, coverOf, drawHint, eventsOf, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, tracksInOrder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -130,11 +130,12 @@ function videoView(cardId, video, open) {
     ${original?.changed ? html`<small class="muted" role="alert">原片在交卡之后改过了（和卡上记的不是同一份）。</small>` : ''}
     ${original?.error ? html`<small class="muted" role="alert">${original.error}</small>` : ''}
     <small class="muted">原片${facts ? ` ${facts}` : ''}，留在交卡的电脑上，云端只有封面和缩略条。</small>
+    ${video.check ? html`<small class="muted">交卡时体检：${checkLine(video.check)}</small>` : ''}
     ${original?.url ? '' : html`<button class="sm" data-act="original" data-card="${cardId}" ${original === 'loading' ? 'disabled' : ''}>${original === 'loading' ? '正在取原片…' : '播放原片'}</button>`}`
 }
 
 // ─── the header: the file's name, the brief (typed in together), 开一轮, settings ──────────────────────────────────
-$('#name').textContent = String(f.entry.name ?? '抽卡台').replace(/\.chouka\.json$/, '')
+$('#name').textContent = String(f.entry.name ?? '片场').replace(/\.studio\.json$/, '')
 try {
   window.gugu.bind.text($('#brief'), f.textAt(['brief']))
 } catch {
@@ -292,7 +293,7 @@ $('#r-start').onclick = async () => {
   $('#r-slot').value = ''
   $('#round-box').close()
   say(`第 ${n} 轮开始了：叫了 ${chosen.map(nameOf).join('、')}`)
-  for (const agent of chosen) await tell(agent, `抽卡台第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。先用抽卡台的 board 工具读卡桌（要求和参考都在那里），每张卡用 submit 交。${drawHint(kind)}`)
+  for (const agent of chosen) await tell(agent, `片场第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。先用片场的 board 工具读卡桌（要求和参考都在那里），每张卡用 submit 交。${drawHint(kind)}`)
 }
 
 // ─── 批注: one dialog, drawn once. Ticking 「要作者交新版」 makes it a reject (the author is asked for a new version) ───────
@@ -329,7 +330,7 @@ $('#say-send').onclick = async () => {
   // Only a reject wakes the author: it asks for a new version. A 批注 asks nothing — the author reads it on the table
   // (waking an agent author for it is a whole turn of its model for nothing to do).
   const card = f.data.cards[cardId]
-  if (verdict === 'reject') await tell(card?.by, `「${card?.title}」被打回了：用抽卡台的 board 工具看批注，再用 submit（带上 card）交新一版。${drawHint(card?.kind)}`)
+  if (verdict === 'reject') await tell(card?.by, `「${card?.title}」被打回了：用片场的 board 工具看批注，再用 submit（带上 card）交新一版。${drawHint(card?.kind)}`)
 }
 
 // ─── the project: spine and stage ───────────────────────────────────────────────────────────────────────────────────
@@ -397,7 +398,7 @@ function cardView(data, id, card, pick) {
   const isPicked = id === pick
   const cost = [money(card.cost?.usd), seconds(card.cost?.seconds)].filter(Boolean).join(' · ')
   const files = card.files ?? []
-  return html`<article class="card chouka-card ${isPicked ? 'picked' : ''}" data-key="${id}">
+  return html`<article class="card studio-card${isPicked ? 'picked' : ''}" data-key="${id}">
     ${card.video ? videoView(id, card.video, opened.has(id)) : ''}
     ${files.length ? html`<div class="pics">${(opened.has(id) ? files : files.slice(0, 1)).map((itemId) => mediaView(itemId))}${!opened.has(id) && files.length > 1 ? html`<small class="more">+${files.length - 1}</small>` : ''}</div>` : ''}
     <strong>${card.title}${(card.version ?? 1) > 1 ? html` <small class="muted">v${card.version}</small>` : ''}</strong>
@@ -460,4 +461,4 @@ window.gugu.onContextChanged((next) => {
 })
 rememberNames()
 draw()
-window.gugu.setTabTitle?.('抽卡台')?.catch?.((error) => say(`标题没改成：${error.message}`, 'error'))
+window.gugu.setTabTitle?.('片场')?.catch?.((error) => say(`标题没改成：${error.message}`, 'error'))
