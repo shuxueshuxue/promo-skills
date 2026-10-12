@@ -211,7 +211,9 @@ test('voice samples: one mp3 per voice, each handed in as its own card that play
     const card = await submit.run({ board: 'table', round: 'r1', title: `声音 ${sample.voice}`, audio: { path: sample.path } }, call)
     assert.deepEqual(board.cards[card.card].files, [`item-${uploads.length}-0`])
   }
-  assert.deepEqual(uploads.map((u) => u.files.map((f) => [f.name, f.type])), [[['eve.mp3', 'audio/mpeg']], [['rex.mp3', 'audio/mpeg']]])
+  // Named by the file and its hash, as covers are: another card's eve.mp3 is another name.
+  const sha8 = (p) => createHash('sha256').update(readFileSync(path.join(work, p))).digest('hex').slice(0, 8)
+  assert.deepEqual(uploads.map((u) => u.files.map((f) => [f.name, f.type])), [[[`eve-${sha8(answer.samples[0].path)}.mp3`, 'audio/mpeg']], [[`rex-${sha8(answer.samples[1].path)}.mp3`, 'audio/mpeg']]])
   assert.equal(spendOf(board).total, 0.004)
 })
 

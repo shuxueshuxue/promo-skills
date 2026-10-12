@@ -142,9 +142,12 @@ async function soundOf(audio, stamp) {
   // A sound has no picture to ask for: only whether anyone can hear it.
   const refusal = refusalOf({ ...(await checkClip(abs, ffmpegTools())), hasPicture: true })
   if (refusal) throw new Error(`${rel} was not handed in: ${refusal}`)
-  const type = { '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.aac': 'audio/aac', '.ogg': 'audio/ogg' }[path.extname(rel).toLowerCase()]
+  const ext = path.extname(rel).toLowerCase()
+  const type = { '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.aac': 'audio/aac', '.ogg': 'audio/ogg' }[ext]
   if (!type) throw new Error(`${rel}: a sound is an mp3, m4a, wav, aac or ogg file`)
-  return { abs, rel, type }
+  // Named as the cover is: by the file and the first characters of its hash — every card's eve.mp3 is its own name.
+  const sha8 = createHash('sha256').update(readFileSync(abs)).digest('hex').slice(0, 8)
+  return { abs, rel, type, name: `${path.basename(rel, path.extname(rel))}-${sha8}${ext}` }
 }
 
 /** What one of the App's tools paid the person's media service, added to the table's total (cards[] keep the agent's own report). */
@@ -313,7 +316,7 @@ export const submit = {
       // The last thing before the card is written: nothing reaches the chat for a card that is refused.
       const video = clip ? { ...(await picturesIn(f.entry.chat, clip.pictures)), ...clip.video } : null
       if (sound) {
-        const [entry] = await gugu.files.upload({ chat: f.entry.chat }, [new File([readFileSync(sound.abs)], path.basename(sound.rel), { type: sound.type })])
+        const [entry] = await gugu.files.upload({ chat: f.entry.chat }, [new File([readFileSync(sound.abs)], sound.name, { type: sound.type })])
         if (!entry?.id) throw new Error('the sound did not reach the chat — try again')
         files.push(entry.id)
       }
