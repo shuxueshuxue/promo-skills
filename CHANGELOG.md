@@ -1,5 +1,23 @@
 # 片场 (Studio) — changes
 
+## 0.7.1 (2026-10-12)
+
+From the first rehearsal (one sentence → the lead opens rounds → writers hand in → the person picks) and review r3.
+
+- **`open_round`:** its `chat` is a gugu-chat — gugu hands it over as the calling agent's own chat, by its id or the
+  number people see, and refuses one the agent is not in; the table is made as that agent. A refused first call makes
+  nothing (no empty table). A plan given with a round is the rounds after it, as given; without one, a round leaves the
+  plan only when it is its first step by kind and slot.
+- **Each writer's own folder:** `board` answers `yourFolder` (`studio/<the table>/<the writer's id>/`), voice samples go
+  there, and the skill asks for every file of the table there — writers on one computer can share a working copy.
+- **The film's own sound under the narration** is first brought down to -24 LUFS when louder (never up): the narration
+  sits the same over every film, and the whole comes out at -16 LUFS.
+- **On the page:** the table follows the round the lead opens; under a cent the cost has its figures ($0.00017); a
+  card's marks say in words what they are; 组长 is named once; a clip's original takes its cover's place and plays; a
+  card whose line breaks came escaped (`\n`) shows them as breaks.
+- The App page's About is about 片场 (the bundle's README opens with it).
+- Catching up on prices decides in so many words what is still owed; the page's waking of the lead is one tested rule.
+
 ## 0.7.0 (2026-10-12)
 
 - **A lead agent opens the rounds (`open_round`).** The person says "做条 xx 的片子" in the group; the agent asked makes
