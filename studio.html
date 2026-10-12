@@ -14,6 +14,8 @@
   <button id="open-round" aria-label="开一轮"><gugu-icon name="plus"></gugu-icon></button>
   <button id="open-settings" aria-label="设置"><gugu-icon name="settings"></gugu-icon></button>
 </header>
+<!-- What the table has cost so far: a line of its own under the header, empty (and hidden) until something was paid for. -->
+<small id="spend" class="muted"></small>
 
 <!-- The project: the stages down the left, the open one's candidates on the right. -->
 <main id="project">
@@ -33,10 +35,11 @@
     <div id="writers" class="stack"></div>
   </section>
   <section class="stack">
-    <h5>出图 <small class="muted" id="img-state"></small></h5>
-    <small class="muted">写手出分镜、海报时，调片场的出图工具，用你的 OpenRouter 密钥，费用记在你的 OpenRouter 账上。密钥只存在这台电脑上，不写进卡桌文件（对话里的人都看得到卡桌文件）。</small>
+    <h5>出图和配音 <small class="muted" id="img-state"></small></h5>
+    <small class="muted">写手出分镜、海报、配旁白时，调片场的出图和配音工具，用你的 OpenRouter 密钥，费用记在你的 OpenRouter 账上，也记在卡桌最上面。密钥只存在这台电脑上，不写进卡桌文件（对话里的人都看得到卡桌文件）。</small>
     <label>OpenRouter API 密钥 <input id="img-key" type="password" autocomplete="off" /></label>
     <label>出图模型 <input id="img-model" /></label>
+    <label>配音的声音 <select id="voice"></select></label>
     <div class="row"><button class="primary" id="img-save">保存并检查</button><button id="img-clear">清掉密钥</button><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">获取密钥</a></div>
     <small class="muted" id="img-where"></small>
   </section>

@@ -16,8 +16,10 @@ the most when it is unlike the others'**. The people in the chat annotate, pick 
 
 ## The tools
 
-片场's tools are `board`, `submit`, `note` and `image`. In your tool list they carry a prefix — in Claude Code
-`mcp__plugin_gugu-product_studio__board` (and `…__submit`, `…__note`, `…__image`); elsewhere `studio__board`.
+片场's tools are `board`, `submit`, `note`, `image` and `voice`. In your tool list they carry a prefix — in Claude Code
+`mcp__plugin_gugu-product_studio__board` (and `…__submit`, `…__note`, `…__image`, `…__voice`); elsewhere `studio__board`.
+`image` and `voice` take the table (`board`) too: what they pay the person's media service is added to the table's
+total, which the person sees on it.
 **Look in your own tool list first.** One that is not there — your session started before the App was given to this
 chat, or before an update added the tool — is still reachable: `catalog_call` with tool `studio__image` (or
 `studio__board`, …) runs it, even when `catalog_list` does not show it. Only if that fails too, say so to the
@@ -63,8 +65,17 @@ on that file. It tells you:
      screens — a clip nobody can hear is refused, so mux the narration in first; so is one longer than 10 minutes), makes its cover and its strip of 8
      frames and puts those two in the chat, and keeps the clip's size and hash. The check comes back in the answer and
      goes on the card; the person plays the clip from the table, read from your machine. Don't move or overwrite it
-     after you hand it in — a new cut is a new version of the card.
-4. Report `cost`: `usd` is what the media API itself reported (the `image` tool's `usd`, a video API's `usage.cost`),
+     after you hand it in — a new cut is a new version of the card;
+   - narration: cut the picture first, then `voice` with `film` (its path in your working copy) and `lines` — each
+     `{ text, at }`, `at` the second the line starts, in the order spoken. It speaks every line in the table's voice,
+     lays them on one track at -16 LUFS in place of the film's sound and answers `renders/<film>.voiced.mp4`: hand that
+     in with `video`. A line that runs into the next is refused with how much it is over and about how many characters
+     fit — shorten it to that, or move the next line later, and call `voice` again (lines already spoken are not paid
+     for twice). There is no placeholder voice: without the person's key, ask them for it in one line;
+   - voice samples (a round that picks the voice): `voice` with `sample` (one line from the film) and `voices` →
+     one mp3 per voice; hand **each in as its own card** with `audio: { path }`, the voice's name in the title. The card
+     plays it.
+4. Report `cost`: `usd` is what the media API itself reported (the `image` or `voice` tool's `usd`, a video API's `usage.cost`),
    `seconds` the wall time the card took, `tokens` your own approximate count. Leave out what you cannot know; never
    guess dollars.
 5. One `submit` per card. To answer a reject, `submit` again with `card` set to your card: that makes a new version

@@ -9,8 +9,8 @@
 // Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
 // their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, TRACKS, cardClass, checkLine, coverOf, drawHint, eventsOf, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, tracksInOrder } from './model.js'
-import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
+import { KINDS, TRACKS, cardClass, checkLine, coverOf, drawHint, eventsOf, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, spendOf, tracksInOrder } from './model.js'
+import { IMAGE_MODEL, SETTINGS_FILE, VOICES, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
 const md = await window.gugu.markdown()
@@ -170,8 +170,10 @@ async function saveSettings(change) {
 async function loadSettings() {
   await readSettings()
   drawWriters()
-  for (const id of ['#img-key', '#img-model', '#img-save', '#img-clear']) $(id).disabled = !runsPrograms
+  for (const id of ['#img-key', '#img-model', '#img-save', '#img-clear', '#voice']) $(id).disabled = !runsPrograms
   $('#img-model').placeholder = IMAGE_MODEL
+  render($('#voice'), html`${VOICES.map((v) => html`<option value="${v}">${v}</option>`)}`)
+  $('#voice').value = VOICES.includes(settings.voice) ? settings.voice : VOICES[0]
   if (!runsPrograms) {
     $('#img-state').textContent = '在电脑上设置'
     return
@@ -204,6 +206,14 @@ $('#img-save').onclick = async () => {
     })
     $('#img-key').value = ''
     await loadSettings()
+  } catch (error) {
+    say(`没存上：${error.message}`, 'error')
+  }
+}
+$('#voice').onchange = async () => {
+  const voice = $('#voice').value
+  try {
+    await saveSettings((s) => ({ ...s, voice }))
   } catch (error) {
     say(`没存上：${error.message}`, 'error')
   }
@@ -428,11 +438,20 @@ function stageView(data) {
     <div class="cards">${cards.map(([id, card]) => cardView(data, id, card, pick))}</div>`
 }
 
+/** What the table has cost so far, by the App's own tools — empty until something was paid for. */
+function spendLine(data) {
+  const { total, byTool, unknown } = spendOf(data)
+  if (!total && !unknown) return ''
+  const parts = [['voice', '配音'], ['image', '出图']].filter(([tool]) => byTool[tool]).map(([tool, name]) => `${name} ${money(byTool[tool])}`)
+  return `已花 ${money(total) || '$0'}${parts.length ? `（${parts.join(' · ')}）` : ''}${unknown ? `，另有 ${unknown} 笔还没出账` : ''}`
+}
+
 function draw() {
   const data = f.data
   if (!openRound || !data.rounds[openRound]) openRound = roundsInOrder(data).at(-1)?.[0] ?? null
   render($('#spine'), spineView(data))
   render($('#stage'), stageView(data))
+  $('#spend').textContent = spendLine(data)
   const rules = Object.values(data.rules).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
   render($('#rules'), html`<small class="muted">底子是 promo-video skill 里 director-rulings.md 的 23 条；下面是在这张卡桌上被打回后升上来的${rules.length ? '' : '（还没有）'}。</small>
     <ol start="24">${rules.map((r) => html`<li data-key="${r.from}">${r.text}</li>`)}</ol>`)

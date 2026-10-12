@@ -1,5 +1,16 @@
 # 片场 (Studio) — changes
 
+## 0.6.0 (2026-10-12)
+
+- **Narration (`voice`):** a film's lines, each with the second it starts, are spoken with the voice model on the
+  person's key (OpenRouter, the key pictures use; the voice is picked in the table's settings), laid on one track at
+  -16 LUFS in place of the film's sound — the picture is copied, not re-encoded — as `<film>.voiced.mp4` beside it.
+  A line that runs into the next is refused with how much it is over and about how many characters fit at the pace it
+  was said; a line said before in the same voice is not bought again. No key, no voice: there is no placeholder.
+- **Voice samples:** one line in several voices, each handed in as its own card (`submit → audio`), which plays it.
+- **What the table has cost:** what `voice` and `image` pay is written on the table and summed at its top (配音 · 出图).
+  `image` now takes the table (`board`) for that.
+
 ## 0.5.0 (2026-10-12)
 
 - **Renamed from 抽卡台 to 片场 (en: Studio)**, and its ids with it: the App is `studio`, table files are

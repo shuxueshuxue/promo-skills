@@ -4,9 +4,10 @@ import { createHash } from 'node:crypto'
 import { createReadStream, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
+import { MAX_SECONDS, checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
+import { costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
 import { answered, feedbackOf, normalizeTable, roundsInOrder, slotOf, statusOf, workingCopyPath } from './model.js'
-import { IMAGE_MODEL, SETTINGS_FILE, parseSettings } from './settings.js'
+import { IMAGE_MODEL, SETTINGS_FILE, VOICES, VOICE_MODEL, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .studio.json file the whisper you got is about.' }
 const now = () => new Date().toISOString()
@@ -48,14 +49,20 @@ const VIDEO = {
 /** The largest file an App can open (gugu's open-file limit): a bigger original could be kept but never played. */
 const PLAYABLE_BYTES = 25 * 1024 * 1024
 
-/** The original of a clip, read where the agent works (gugu stamps which session and which working copy — never its word). */
-async function originalOf(video, { session, workspaceRoot }) {
+/**
+ * A file the agent names in its working copy (gugu stamps which session and which working copy — never its word): its
+ * path there, where it really is, and its size. Nothing outside the working copy, however it is reached.
+ */
+function workingCopyRoot({ session, workspaceRoot }) {
   if (!session || !workspaceRoot) {
     throw new Error('this gugu does not tell the tool which session you are in: hand the clip in as a file instead (put it in the chat\'s group folder, then give its item id in files)')
   }
-  const rel = workingCopyPath(video.path)
-  if (!rel) throw new Error(`video.path is a path inside your working copy, like renders/cut.mp4 — not ${JSON.stringify(video.path)}`)
-  const root = realpathSync(workspaceRoot)
+  return realpathSync(workspaceRoot)
+}
+function inWorkingCopy(given, stamp, what) {
+  const root = workingCopyRoot(stamp)
+  const rel = workingCopyPath(given)
+  if (!rel) throw new Error(`${what} is a path inside your working copy, like renders/cut.mp4 — not ${JSON.stringify(given)}`)
   let abs
   try {
     abs = realpathSync(path.join(root, rel))
@@ -66,6 +73,12 @@ async function originalOf(video, { session, workspaceRoot }) {
   if (!inside || inside.startsWith('..') || path.isAbsolute(inside)) throw new Error(`${rel} leads outside your working copy`)
   const stat = statSync(abs)
   if (!stat.isFile()) throw new Error(`${rel} is not a file`)
+  return { rel, abs, root, stat }
+}
+
+/** The original of a clip, read where the agent works. */
+async function originalOf(video, { session, workspaceRoot }) {
+  const { rel, abs, stat } = inWorkingCopy(video.path, { session, workspaceRoot }, 'video.path')
   if (stat.size > PLAYABLE_BYTES) {
     throw new Error(`${rel} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the table plays an original of up to 25 MB — hand in the 720p review render instead and keep the master where you rendered it`)
   }
@@ -120,6 +133,29 @@ async function picturesIn(chat, { cover, strip }) {
   const [coverId, stripId] = entries.map((entry) => entry.id)
   if (!coverId || !stripId) throw new Error('the cover and strip did not reach the chat — try again')
   return { cover: coverId, strip: stripId }
+}
+
+/** A sound handed in with `audio` (a voice sample, a narration): read where it was made — refused when nobody can hear it. */
+async function soundOf(audio, stamp) {
+  const { rel, abs, stat } = inWorkingCopy(audio.path, stamp, 'audio.path')
+  if (stat.size > PLAYABLE_BYTES) throw new Error(`${rel} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the table plays a sound of up to 25 MB`)
+  // A sound has no picture to ask for: only whether anyone can hear it.
+  const refusal = refusalOf({ ...(await checkClip(abs, ffmpegTools())), hasPicture: true })
+  if (refusal) throw new Error(`${rel} was not handed in: ${refusal}`)
+  const type = { '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.aac': 'audio/aac', '.ogg': 'audio/ogg' }[path.extname(rel).toLowerCase()]
+  if (!type) throw new Error(`${rel}: a sound is an mp3, m4a, wav, aac or ogg file`)
+  return { abs, rel, type }
+}
+
+/** What one of the App's tools paid the person's media service, added to the table's total (cards[] keep the agent's own report). */
+async function recordSpend(board, entry) {
+  const f = await openBoard(board)
+  try {
+    f.data.spend[newId('s')] = { ...entry, at: now() }
+    await flushed(f)
+  } finally {
+    f.close()
+  }
 }
 
 const cardLine = (data, id, card) => ({
@@ -189,7 +225,7 @@ export const board = {
 
 export const submit = {
   description:
-    'Hand in one card for a round of a Studio (片场) card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat\'s group folder first (give their item ids), and/or a clip (`video`: just its path in your working copy — submit checks it and makes its cover and strip). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card.',
+    'Hand in one card for a round of a Studio (片场) card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat\'s group folder first (give their item ids), and/or a clip (`video`: just its path in your working copy — submit checks it and makes its cover and strip), or a sound (`audio`: a voice sample from the `voice` tool — one per card). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card.',
   inputSchema: {
     type: 'object',
     required: ['board', 'round'],
@@ -200,6 +236,12 @@ export const submit = {
       text: { type: 'string', description: 'The card itself in markdown: the narrative, the copy, the shot description, what a clip shows.' },
       files: { type: 'array', items: { type: 'string' }, description: 'Item ids of files in this chat (images, clips, audio) that are this card.' },
       video: VIDEO,
+      audio: {
+        type: 'object',
+        required: ['path'],
+        properties: { path: { type: 'string', description: 'A sound in your working copy, relative to it: an mp3 the `voice` tool made (a voice sample), or another. submit checks it can be heard and puts it in the chat; the card plays it.' } },
+        description: 'A sound that is the card (one voice sample per card) — instead of uploading it yourself.',
+      },
       card: { type: 'string', description: 'Your own card to revise (a new version of it). Someone else\'s card: pass it in parents instead.' },
       parents: { type: 'array', items: { type: 'string' }, description: 'Cards this one mixes or builds on.' },
       model: { type: 'string', description: 'The model you are (shown on the card).' },
@@ -214,6 +256,7 @@ export const submit = {
     if (!agent) throw new Error('submit is for agents (gugu stamps who calls)')
     // Read before the table is opened: a clip that is not there, or that nobody can hear, is said before anything is written.
     const clip = args.video ? await originalOf(args.video, { session, workspaceRoot }) : null
+    const sound = args.audio ? await soundOf(args.audio, { session, workspaceRoot }) : null
     // A clip already on the card, as plain values (the table's own objects are live).
     const plainVideo = (v) => (v ? JSON.parse(JSON.stringify(v)) : null)
     let f = null
@@ -226,11 +269,17 @@ export const submit = {
       const prev = own ? f.data.cards[own] : {}
       const title = String(args.title ?? prev.title ?? '')
       const text = String(args.text ?? prev.text ?? '')
-      const files = (args.files ?? prev.files ?? []).map(String)
+      // A new sound replaces the card's files, unless files are given with it.
+      const files = (args.files ?? (sound ? [] : prev.files) ?? []).map(String)
       if (!title) throw new Error('a card needs a title')
-      if (!text && !files.length && !clip && !prev.video) throw new Error('a card needs text, files or a video')
+      if (!text && !files.length && !clip && !sound && !prev.video) throw new Error('a card needs text, files, a video or a sound')
       // The last thing before the card is written: nothing reaches the chat for a card that is refused.
       const video = clip ? { ...(await picturesIn(f.entry.chat, clip.pictures)), ...clip.video } : null
+      if (sound) {
+        const [entry] = await gugu.files.upload({ chat: f.entry.chat }, [new File([readFileSync(sound.abs)], path.basename(sound.rel), { type: sound.type })])
+        if (!entry?.id) throw new Error('the sound did not reach the chat — try again')
+        files.push(entry.id)
+      }
       const at = now()
       const fields = {
         title,
@@ -326,17 +375,18 @@ export const check_image_key = {
 
 export const image = {
   description:
-    'Make one image for a Studio (片场) card — a storyboard frame, a poster, a key visual — with the image model the person set up in the card table (OpenRouter, their key). Answers a local file path: put it in the chat\'s group folder (as image/png), then give its item id in submit → files, and its cost in submit → cost.usd. Use it whichever harness you are; a harness with its own image tool may use that instead.',
+    'Make one image for a Studio (片场) card — a storyboard frame, a poster, a key visual — with the image model the person set up in the card table (OpenRouter, their key). Answers a local file path: put it in the chat\'s group folder (as image/png), then give its item id in submit → files, and its cost in submit → cost.usd. What it paid is added to the table\'s total. Use it whichever harness you are; a harness with its own image tool may use that instead.',
   inputSchema: {
     type: 'object',
-    required: ['prompt'],
+    required: ['board', 'prompt'],
     properties: {
+      board: BOARD,
       prompt: { type: 'string', description: 'The picture, in words: subject, composition, style, what must be on screen. No text in the image unless you ask for it.' },
       aspect: { type: 'string', enum: ['16:9', '1:1', '9:16', '4:3', '3:4'], description: 'Default 16:9 (a frame of the film).' },
       references: { type: 'array', items: { type: 'string' }, description: 'Absolute paths of images on this computer to keep the look of (a mascot, a product screenshot).' },
     },
   },
-  async run({ prompt, aspect = '16:9', references = [] }, { agent }) {
+  async run({ board, prompt, aspect = '16:9', references = [] }, { agent }) {
     const settings = readSettings()
     const key = keyOf(settings)
     if (!key) throw new Error('No image key yet: the person adds their OpenRouter key under 「出图设置」 on the card table. Until then hand in a precise frame description and say so.')
@@ -370,12 +420,102 @@ export const image = {
     writeFileSync(file, Buffer.from(json.data[0].b64_json, 'base64'))
     // A key that brings its own provider key (BYOK) is charged upstream: OpenRouter's own cost then reads 0.
     const usage = json.usage ?? {}
+    const usd = Number(usage.cost) || Number(usage.cost_details?.upstream_inference_cost) || 0
+    await recordSpend(board, { tool: 'image', usd, by: agent ?? null, what: String(prompt).slice(0, 80) })
     return {
       file_path: file,
       model: settings.imageModel || IMAGE_MODEL,
       seconds: Math.round((Date.now() - started) / 1000),
-      usd: Number(usage.cost) || Number(usage.cost_details?.upstream_inference_cost) || 0,
+      usd,
       next: 'put this file_path in the chat\'s group folder (as image/png), then pass its item id in submit → files',
+    }
+  },
+}
+
+export const voice = {
+  description:
+    'Voice a film\'s narration, or voice samples to pick a voice from, with the voice model the person set up on the card table (OpenRouter, their key). A film: give the film in your working copy and its lines, each with the second it starts at; every line is spoken, laid at its start on one track brought to -16 LUFS and put in place of the film\'s sound (the picture is not touched) → renders/<film>.voiced.mp4 next to it, which you hand in with submit → video. A line that runs into the next one is refused, saying by how much and about how many characters fit; a line already spoken the same way is not paid for again. Samples: give one line and several voices → one mp3 per voice; hand each in as its own card with submit → audio. What it paid is added to the table\'s total.',
+  inputSchema: {
+    type: 'object',
+    required: ['board'],
+    properties: {
+      board: BOARD,
+      film: { type: 'string', description: 'The film in your working copy, relative to it (renders/cut.720p.mp4).' },
+      lines: {
+        type: 'array',
+        items: { type: 'object', required: ['text', 'at'], properties: { text: { type: 'string' }, at: { type: 'number', description: 'The second it starts.' } } },
+        description: 'The narration, in the order it is spoken.',
+      },
+      voice: { type: 'string', enum: VOICES, description: 'Default: the voice picked on the table\'s settings, else eve.' },
+      sample: { type: 'string', description: 'Instead of a film: one line to say in each of `voices`.' },
+      voices: { type: 'array', items: { type: 'string', enum: VOICES }, description: 'The voices for `sample` (default: all).' },
+    },
+  },
+  async run(args, { agent, session, workspaceRoot }) {
+    const settings = readSettings()
+    const key = keyOf(settings)
+    if (!key) throw new Error('No voice key yet: the person adds their OpenRouter key in the card table\'s settings (the same key pictures use). Ask them in one line; there is no placeholder voice.')
+    const model = settings.voiceModel || VOICE_MODEL
+    const cacheDir = path.join(DATA_DIR, 'voice')
+    // What this call bought (a line from the cache costs nothing): priced all at once when the call ends — the service
+    // keeps its record of a purchase some 12 s after it — and put on the table once, whatever happens.
+    const generations = []
+    const say = async (voiceName, text) => {
+      const said = await speak({ key, model, voice: voiceName, text, cacheDir })
+      if (said.generation) generations.push(said.generation)
+      return said.file
+    }
+    let settled = null
+    const settle = async () => {
+      if (settled) return settled
+      const prices = await Promise.all(generations.map((generation) => costOf(key, generation)))
+      const unpriced = prices.filter((n) => n === null).length
+      settled = { usd: prices.reduce((sum, n) => sum + (n ?? 0), 0), ...(unpriced ? { unpriced } : {}) }
+      if (prices.length) await recordSpend(args.board, { tool: 'voice', ...settled, by: agent ?? null, what: `${prices.length} line(s) spoken` })
+      return settled
+    }
+    try {
+      if (args.sample !== undefined) {
+        const text = String(args.sample).trim()
+        if (!text) throw new Error('sample: the line to say in each voice')
+        const root = workingCopyRoot({ session, workspaceRoot })
+        const dir = path.join(root, 'renders', 'voice-samples')
+        mkdirSync(dir, { recursive: true })
+        const samples = []
+        for (const name of args.voices?.length ? args.voices.map((v) => voiceOf(settings, v)) : VOICES) {
+          const out = path.join(dir, `${name}.mp3`)
+          writeFileSync(out, readFileSync(await say(name, text)))
+          samples.push({ voice: name, path: path.relative(root, out).split(path.sep).join('/') })
+        }
+        return { samples, ...(await settle()), next: 'hand in each sample as its own card: submit → audio { path }, the voice in the title' }
+      }
+      const tools = ffmpegTools()
+      const film = inWorkingCopy(args.film, { session, workspaceRoot }, 'film')
+      const probe = await checkClip(film.abs, tools)
+      if (!probe.hasPicture) throw new Error(`${film.rel} has no picture to voice`)
+      if (probe.seconds > MAX_SECONDS) throw new Error(`${film.rel} is ${(probe.seconds / 60).toFixed(1)} minutes long; the table takes films of up to ${MAX_SECONDS / 60} minutes`)
+      const filmSeconds = probe.seconds
+      const lines = linesOf(args.lines, filmSeconds)
+      const name = voiceOf(settings, args.voice)
+      for (const line of lines) {
+        const file = await say(name, line.text)
+        Object.assign(line, { file, seconds: await secondsOf(tools, file) })
+      }
+      const problems = overruns(lines, filmSeconds)
+      if (problems.length) throw new Error(`The narration does not fit the film: ${overrunMessage(problems)}. Lines already spoken are kept: a retry pays only for what changed.`)
+      const out = path.join(path.dirname(film.abs), `${path.basename(film.rel, path.extname(film.rel))}.voiced.mp4`)
+      await layNarration({ tools, film: film.abs, lines, seconds: filmSeconds, out })
+      return {
+        path: path.relative(film.root, out).split(path.sep).join('/'),
+        voice: name,
+        lines: lines.map((line, i) => ({ n: i + 1, at: line.at, seconds: Math.round(line.seconds * 100) / 100 })),
+        ...(await settle()),
+        next: 'hand it in with submit → video { path } (submit checks it and makes its cover and strip)',
+      }
+    } catch (error) {
+      // A refusal after lines were bought: they are on the table all the same.
+      await settle().catch(() => {})
+      throw error
     }
   },
 }

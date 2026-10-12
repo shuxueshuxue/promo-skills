@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
-import { answered, cardClass, checkLine, eventsOf, feedbackOf, normalizeTable, pickOfRound, sentBack, statusOf, tracksInOrder } from '../app/model.js'
+import { answered, cardClass, checkLine, eventsOf, spendOf, feedbackOf, normalizeTable, pickOfRound, sentBack, statusOf, tracksInOrder } from '../app/model.js'
 
 /** A table as 0.2.0 wrote it: rounds without a line, a card revised before versions were kept. */
 const before030 = () => ({
@@ -168,4 +168,16 @@ test('a picked card carries studio-card and picked as two classes, the ones styl
   assert.match(css, /\.studio-card\.picked\s*\{/)
   // The page draws a card with these classes, not a string of its own.
   assert.match(readFileSync(new URL('../app/app.js', import.meta.url), 'utf8'), /<article class="\$\{cardClass\(isPicked\)\}"/)
+})
+
+test('what the table has cost: the sum of what the tools paid, by tool, and the payments not priced yet', () => {
+  const spend = {
+    s1: { tool: 'voice', usd: 0.004, unpriced: 1 },
+    s2: { tool: 'image', usd: 0.155 },
+    s3: { tool: 'image', usd: null },
+  }
+  const { total, byTool, unknown } = spendOf({ spend })
+  assert.ok(Math.abs(total - 0.159) < 1e-9)
+  assert.deepEqual([byTool.voice, byTool.image, unknown], [0.004, 0.155, 2])
+  assert.deepEqual(spendOf({}), { total: 0, byTool: {}, unknown: 0 })
 })

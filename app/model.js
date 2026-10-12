@@ -17,6 +17,8 @@
 //             a note is anyone's — a person's or an agent's they asked to look; reject and pick are the person's
 //   rules     { [id]: { text, from, by, at } }                   rules added on this table, on top of director-rulings.md
 //   names     { [user:…]: name }                                 members' names as the page last saw them (who wrote a card after they left)
+//   spend     { [id]: { tool: voice | image, usd, unpriced?, by, at, what } } what one call of the App's own tools paid the
+//             person's media service, written by that tool (unpriced: purchases the service had not priced yet)
 // Everything many people and agents add to is a map by id (no arrays to fight over).
 
 export const KINDS = ['叙事', '文案', '分镜', '变式', '片头', '整片', '宣传稿', '其他']
@@ -38,7 +40,7 @@ export const TRACKS = ['片子', '文字']
  */
 export function normalizeTable(data) {
   let added = 0
-  for (const key of ['rounds', 'cards', 'feedback', 'rules', 'names']) {
+  for (const key of ['rounds', 'cards', 'feedback', 'rules', 'names', 'spend']) {
     if (!data[key] || typeof data[key] !== 'object') { data[key] = {}; added += 1 }
   }
   for (const round of Object.values(data.rounds)) {
@@ -163,6 +165,24 @@ export function roundComplete(data, roundId) {
 }
 
 /** The picture a card shows first (its spine dot, its first face): a clip's cover, else its first file. */
+/** What this table has cost so far, by tool: the sum of what the tools paid, and how many payments have no amount yet. */
+export function spendOf(data) {
+  const byTool = {}
+  let total = 0
+  let unknown = 0
+  for (const entry of Object.values(data.spend ?? {})) {
+    // unpriced: purchases in one call the service had not priced yet; usd is what the rest of that call cost.
+    unknown += Number(entry.unpriced) || 0
+    if (typeof entry.usd !== 'number') {
+      unknown += 1
+      continue
+    }
+    total += entry.usd
+    byTool[entry.tool] = (byTool[entry.tool] ?? 0) + entry.usd
+  }
+  return { total, byTool, unknown }
+}
+
 /** A clip's check as one line on its card: loudness, the longest silence, blank screens (only when there are any). */
 export function checkLine(check) {
   if (!check) return ''

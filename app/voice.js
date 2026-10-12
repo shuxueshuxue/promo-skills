@@ -1,0 +1,138 @@
+// 片场 voice: narration spoken with the person's voice model (OpenRouter, their key), laid on a film at the second each
+// line starts. The fit check and the advice are plain functions; speaking and laying are ffmpeg and one fetch each.
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+import { CLOCKS, parseLoudness, step } from './clip.js'
+import { VOICES, VOICE_MODEL } from './settings.js'
+
+/** Narration is brought to this integrated loudness (EBU R128), the level the films on the first table were judged at. */
+export const TARGET_LUFS = -16
+
+/** Characters that take time to say: every letter and digit and every Han character; spaces and punctuation do not count. */
+export const spokenLength = (text) => [...String(text)].filter((c) => /[\p{L}\p{N}]/u.test(c)).length
+
+/**
+ * Lines that do not fit: each must end before the next one starts, and the last before the film ends. For each, by how
+ * much it runs over and about how many characters would fit at the pace it was actually spoken.
+ */
+export function overruns(lines, filmSeconds) {
+  return lines.flatMap((line, i) => {
+    const room = (i + 1 < lines.length ? lines[i + 1].at : filmSeconds) - line.at
+    const over = line.seconds - room
+    if (over <= 0) return []
+    const chars = spokenLength(line.text)
+    const last = i + 1 === lines.length
+    return [{ n: i + 1, last, text: line.text, seconds: line.seconds, room: Math.max(room, 0), over, chars, fit: Math.max(1, Math.floor((chars * Math.max(room, 0)) / line.seconds)) }]
+  })
+}
+
+/** What the agent is told of the lines that did not fit: which, by how much, and about how many characters to cut to. */
+export function overrunMessage(problems) {
+  const r = (n) => Math.round(n * 10) / 10
+  return problems
+    .map((p) => {
+      const shown = p.text.length > 24 ? `${p.text.slice(0, 24)}…` : p.text
+      const next = p.last ? 'the film ends' : `line ${p.n + 1} starts`
+      const or = p.last ? 'or start it earlier' : `or start line ${p.n + 1} later`
+      return `line ${p.n} (「${shown}」) lasts ${r(p.seconds)} s but has ${r(p.room)} s before ${next} — ${r(p.over)} s over: cut it to about ${p.fit} characters (it has ${p.chars}), ${or}`
+    })
+    .join('; ')
+}
+
+/** Lines in the order they are spoken, each with a start inside the film. */
+export function linesOf(lines, filmSeconds) {
+  if (!Array.isArray(lines) || !lines.length) throw new Error('lines: the narration, each line as { text, at } (at = the second it starts)')
+  const out = lines.map((line, i) => {
+    const text = String(line?.text ?? '').trim()
+    const at = Number(line?.at)
+    if (!text) throw new Error(`line ${i + 1} has no text`)
+    if (!Number.isFinite(at) || at < 0 || at >= filmSeconds) throw new Error(`line ${i + 1} starts at ${line?.at}: give the second it starts, from 0 to before the film ends (${Math.round(filmSeconds * 10) / 10} s)`)
+    return { text, at }
+  })
+  for (let i = 1; i < out.length; i += 1) if (out[i].at <= out[i - 1].at) throw new Error(`line ${i + 1} starts at ${out[i].at} s, not after line ${i} (${out[i - 1].at} s): give the lines in the order they are spoken`)
+  return out
+}
+
+/**
+ * One line spoken, as an mp3 file. The same text in the same voice and model is bought once: a retry after a refusal
+ * pays only for the lines that changed. Answers the file, and the generation id of a new purchase (null from the cache).
+ */
+export async function speak({ key, model = VOICE_MODEL, voice, text, cacheDir }) {
+  const name = createHash('sha256').update(JSON.stringify([model, voice, text])).digest('hex').slice(0, 32)
+  mkdirSync(cacheDir, { recursive: true })
+  const file = path.join(cacheDir, `${name}.mp3`)
+  if (existsSync(file)) return { file, generation: null }
+  const res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(120_000),
+    // The text goes in the body as JSON — never on a command line, where Chinese came out garbled (10-12, eight calls lost).
+    body: JSON.stringify({ model, input: text, voice: voice.charAt(0).toUpperCase() + voice.slice(1), response_format: 'mp3' }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    const why = res.status === 402 ? "the person's OpenRouter account is out of credits" : `the voice service said HTTP ${res.status}: ${body.slice(0, 300)}`
+    throw new Error(`No voice: ${why}.`)
+  }
+  writeFileSync(file, Buffer.from(await res.arrayBuffer()))
+  return { file, generation: res.headers.get('x-generation-id') }
+}
+
+/**
+ * What a purchase cost, as OpenRouter's own record of it says. A speech purchase's record appears some 12 s after it
+ * (measured 10-12), so this waits up to ~20 s — callers price all of a call's purchases at once, not one by one. A key
+ * that brings its own provider key (BYOK) is charged upstream: that cost is the one that counts. null: never appeared.
+ */
+export async function costOf(key, generation, { tries = 25, wait = 800 } = {}) {
+  if (!generation) return 0
+  for (let i = 0; i < tries; i += 1) {
+    const res = await fetch(`https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(generation)}`, { headers: { Authorization: `Bearer ${key}` } }).catch(() => null)
+    if (res?.ok) {
+      const record = (await res.json().catch(() => ({}))).data ?? {}
+      const usd = record.is_byok ? Number(record.upstream_inference_cost) || Number(record.total_cost) : Number(record.total_cost)
+      if (Number.isFinite(usd)) return usd
+    }
+    await new Promise((resolve) => setTimeout(resolve, wait))
+  }
+  return null
+}
+
+/** A file's length in seconds, as ffprobe reads it. */
+export async function secondsOf(tools, file) {
+  const { stdout } = await step('reading a spoken line', tools.ffprobe, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], CLOCKS.probe)
+  return Number(stdout.trim()) || 0
+}
+
+/**
+ * The film with its narration: every line at its start on one mono track, brought to TARGET_LUFS with one linear gain
+ * (measured, applied, measured again on the written file and corrected once), a limiter for the peaks, in place of the
+ * film's own sound. The picture is copied, not re-encoded.
+ */
+export async function layNarration({ tools, film, lines, seconds, out }) {
+  const inputs = lines.flatMap((line) => ['-i', line.file])
+  const delays = lines.map((line, i) => `[${i + 1}:a]aresample=48000,aformat=channel_layouts=mono,adelay=delays=${Math.round(line.at * 1000)}:all=1[a${i + 1}]`)
+  const mix = `${delays.join(';')};${lines.map((_, i) => `[a${i + 1}]`).join('')}amix=inputs=${lines.length}:normalize=0:dropout_transition=0,apad,atrim=0:${seconds}`
+  const loudness = async (name, args) => parseLoudness((await step(name, tools.ffmpeg, ['-hide_banner', '-nostdin', ...args], CLOCKS.pass)).stderr).lufs
+  const raw = await loudness('measuring the narration', ['-i', film, ...inputs, '-filter_complex', `${mix},aformat=channel_layouts=stereo,ebur128`, '-f', 'null', '-'])
+  if (raw === null) throw new Error('the narration came out silent — try again')
+  const write = (gain) =>
+    step('laying the narration on the film', tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-i', film, ...inputs,
+      '-filter_complex', `${mix},volume=${gain}dB,alimiter=limit=0.84:level=false,aformat=channel_layouts=stereo[out]`,
+      '-map', '0:v', '-c:v', 'copy', '-map', '[out]', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', out], CLOCKS.pass)
+  let gain = TARGET_LUFS - raw
+  await write(gain)
+  const written = await loudness('measuring the voiced film', ['-i', out, '-vn', '-af', 'ebur128', '-f', 'null', '-'])
+  if (written !== null && Math.abs(written - TARGET_LUFS) > 0.3) {
+    gain += TARGET_LUFS - written
+    await write(gain)
+  }
+  return out
+}
+
+/** The person's voice settings, read where the image key is (settings.json in the App's data folder). */
+export function voiceOf(settings, asked) {
+  const voice = String(asked ?? settings.voice ?? VOICES[0]).toLowerCase()
+  if (!VOICES.includes(voice)) throw new Error(`voice ${JSON.stringify(asked)}: one of ${VOICES.join(', ')}`)
+  return voice
+}
