@@ -475,7 +475,7 @@ export const image = {
 
 export const voice = {
   description:
-    'Voice a film\'s narration, or voice samples to pick a voice from, with the voice model the person set up on the card table (OpenRouter, their key). A film: give the film in your working copy and its lines, each with the second it starts at; every line is spoken, laid at its start on one track brought to -16 LUFS and put in place of the film\'s sound (the picture is not touched) → renders/<film>.voiced.mp4 next to it, which you hand in with submit → video. A line that runs into the next one is refused, saying by how much and about how many characters fit; a line already spoken the same way is not paid for again. Samples: give one line and several voices → one mp3 per voice; hand each in as its own card with submit → audio. What it paid is added to the table\'s total.',
+    'Voice a film\'s narration, or voice samples to pick a voice from, with the voice model the person set up on the card table (OpenRouter, their key). A film: give the film in your working copy and its lines, each with the second it starts at; every line is spoken, laid at its start on one track at -16 LUFS over the film\'s own sound — kept, and lowered under each spoken line; a silent film gets the narration alone (the picture is not touched) → renders/<film>.voiced.mp4 next to it, which you hand in with submit → video. A line that runs into the next one is refused, saying by how much and about how many characters fit; a line already spoken the same way is not paid for again. Samples: give one line and several voices → one mp3 per voice; hand each in as its own card with submit → audio. What it paid is added to the table\'s total.',
   inputSchema: {
     type: 'object',
     required: ['board'],
@@ -552,7 +552,9 @@ export const voice = {
       const problems = overruns(lines, filmSeconds)
       if (problems.length) throw new Error(`The narration does not fit the film: ${overrunMessage(problems)}. Lines already spoken are kept: a retry pays only for what changed.`)
       const out = path.join(path.dirname(film.abs), `${path.basename(film.rel, path.extname(film.rel))}.voiced.mp4`)
-      await layNarration({ tools, film: film.abs, lines, seconds: filmSeconds, out })
+      // A film with a sound of its own keeps it, lowered under the narration; a silent one gets the narration alone.
+      const original = probe.hasSound && probe.lufs !== null && probe.lufs > -60 ? { lufs: probe.lufs } : null
+      await layNarration({ tools, film: film.abs, lines, seconds: filmSeconds, out, original })
       return {
         path: path.relative(film.root, out).split(path.sep).join('/'),
         voice: name,

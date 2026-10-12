@@ -11,6 +11,11 @@
 - **On the page:** the lead and what it waits for, with 暂停组长 / 交还组长; planned rounds as dashed nodes on the
   spine; who opened each round; 跳过这一轮; the person's pick (or skip) wakes the lead.
 - A 配音 round kind (voice samples).
+- **Narration over the film's own sound:** `voice` keeps a film's music and effects and lowers them about 15 dB under
+  the narration while a line is spoken (a short ramp in and out); a silent film gets the narration alone. Before, the
+  narration replaced the film's sound.
+- Prices are looked up on a clock and caught up later; a spoken line is kept only once it is a sound; a step that runs
+  over its clock is killed (SIGKILL); voice samples are named by their hash in the group folder.
 
 ## 0.6.0 (2026-10-12)
 

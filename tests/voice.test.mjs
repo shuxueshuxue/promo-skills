@@ -3,7 +3,7 @@
 // retry that pays only for what changed, samples handed in as cards. Run: node --test tests/*.mjs (needs ffmpeg).
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -268,4 +268,31 @@ test('a line is kept only once it is a sound, and kept per model, voice and text
   } finally {
     globalThis.fetch = saved
   }
+})
+
+// How loud one tone is in a stretch of a file: the band around it only (narration is 330 Hz here, the "music" 220 Hz).
+const bandLevel = (file, from, seconds, freq) => {
+  // volumedetect writes to stderr.
+  const { stderr } = spawnSync(tools.ffmpeg, ['-hide_banner', '-nostdin', '-ss', String(from), '-t', String(seconds), '-i', file, '-vn', '-af', `bandpass=f=${freq}:width_type=q:w=30,volumedetect`, '-f', 'null', '-'], { encoding: 'utf8' })
+  return Number(/mean_volume: (-?[\d.]+) dB/.exec(stderr)?.[1])
+}
+
+test('a film with a sound of its own keeps it: lowered 12–18 dB under each spoken line, as it was between them (review d00ad0e)', { skip: noFfmpeg }, async () => {
+  key('test-key')
+  standIn()
+  table()
+  mkdirSync(path.join(work, 'renders'), { recursive: true })
+  execFileSync(tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=6:size=320x180:rate=10', '-f', 'lavfi', '-i', 'sine=frequency=220:duration=6,volume=2',
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', path.join(work, 'renders', 'music.mp4')])
+  const answer = await voice.run({ board: 'table', film: 'renders/music.mp4', lines: [{ text: '甲', at: 1 }, { text: '乙', at: 3.5 }] }, call)
+  const out = path.join(work, answer.path)
+  const musicBetween = bandLevel(out, 5.1, 0.7, 220)
+  const musicUnder = bandLevel(out, 1.3, 0.5, 220)
+  const voiceOver = bandLevel(out, 1.3, 0.5, 330)
+  assert.ok(musicBetween > -40, `the music is still there between the lines (${musicBetween} dB)`)
+  assert.ok(musicBetween - musicUnder >= 10, `under a line the music goes down (${musicBetween} → ${musicUnder} dB)`)
+  const gap = voiceOver - musicUnder
+  assert.ok(gap >= 12 && gap <= 18, `under a line the music sits 12–18 dB under the narration (${gap.toFixed(1)} dB)`)
+  const check = await checkClip(out, tools)
+  assert.ok(Math.abs(check.lufs - -16) <= 1, `the whole at -16 LUFS (${check.lufs})`)
 })
