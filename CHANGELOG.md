@@ -1,5 +1,17 @@
 # 片场 (Studio) — changes
 
+## 0.7.3 (2026-10-12)
+
+Review r5.
+
+- **`open_round` checks everything before it writes:** a `plan` that is not a list of `{ kind, slot }` (a string, an
+  object, `[null]`, a step without a kind from the list) is refused, saying the shape, before the table is made or the
+  round put on it; so are `round.agents` and `round.refs` that are not lists. Before, a bad plan failed after the round
+  was on the table — its writers never woken, and the lead refused the next round for want of a pick.
+- A plan step on the table that is not one (the file edited by hand) is dropped instead of breaking the next round.
+- **The voiced film is named by its film's hash** (`<film>-<sha8>.voiced.mp4`, as covers are): one writer voicing two
+  films of one name gets two files.
+
 ## 0.7.2 (2026-10-12)
 
 Review r4.
