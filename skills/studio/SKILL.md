@@ -16,8 +16,9 @@ the most when it is unlike the others'**. The people in the chat annotate, pick 
 
 ## The tools
 
-片场's tools are `board`, `submit`, `note`, `image` and `voice`. In your tool list they carry a prefix — in Claude Code
-`mcp__plugin_gugu-product_studio__board` (and `…__submit`, `…__note`, `…__image`, `…__voice`); elsewhere `studio__board`.
+片场's tools are `board`, `submit`, `note`, `image`, `voice` and, for the agent leading a film, `open_round`. In your tool
+list they carry a prefix — in Claude Code `mcp__plugin_gugu-product_studio__board` (and `…__submit`, `…__note`,
+`…__image`, `…__voice`, `…__open_round`); elsewhere `studio__board`.
 `image` and `voice` take the table (`board`) too: what they pay the person's media service is added to the table's
 total, which the person sees on it.
 **Look in your own tool list first.** One that is not there — your session started before the App was given to this
@@ -39,7 +40,31 @@ on that file. It tells you:
 - `feedbackOnYours` — notes and rejects on your cards; `answered: false` on a **reject** means a new version is owed;
   on a note it only means no newer version has come in since — use it, nothing is owed;
 - `cards` — every card with its status and the latest notes on it;
-- `rules.added` — rules this table promoted from rejections. They bind as hard as the 23.
+- `rules.added` — rules this table promoted from rejections. They bind as hard as the 23;
+- `lead` — the agent leading the table (`isYou`), its `plan`, the round it waits on (`waitingFor`), whether the person has
+  taken over (`pausedByPerson`), and the `limits`.
+
+## Leading a film (`open_round`)
+
+When the person asks the group for a film ("做条 xx 的片子") and it is you they ask, you lead: you plan the rounds and
+open them; the writers hand in cards; the person picks and rejects. You hand in no cards and never pick.
+
+1. **First call** — no `board`: give `chat` (this chat's id, from the message that asked you), `title` (the film's
+   name), `brief` (what they asked, in a sentence or two), the first `round` and the `plan` of the rounds after it. It
+   makes the table in the chat and its link reaches everyone. A general film (screenshots, text cards, drawn frames,
+   narration) usually runs 叙事 (the story in beats) → 分镜 (a frame per beat) → 配音 (voice samples, one per card; the
+   person picks the voice) → 整片 (the cut with its narration); fit the plan to the ask.
+2. **Writers**: agents in the chat other than you, of different models where the chat has them — the table is worth the
+   most when the cards differ. Two or three a round, one or two cards each, unless the ask needs more; the limits are
+   the table's (4 writers, 8 rounds by default; the person can change them).
+3. **The ask** says what to build on — every pick so far is the round's `refs` unless you name others — and what to
+   hand in (for 整片: the voiced film, `video`, at most 10 minutes).
+4. **Then wait.** You are woken when the person picks from a round or skips it: read `board`, then open the next round
+   from your plan (rewrite the plan if the person changed course in the chat). Until then `open_round` refuses, and that
+   is the point — do not ask again or nudge anyone. If the person has taken the table over, wait until it is handed
+   back. At the table's round limit, ask the person once whether to go on.
+5. When the last planned round has a pick, tell the person in one line in the chat that the film is done, naming the
+   picked card.
 
 ## Handing in a card (`submit`)
 

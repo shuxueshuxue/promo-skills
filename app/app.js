@@ -9,7 +9,7 @@
 // Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
 // their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, TRACKS, cardClass, checkLine, coverOf, drawHint, eventsOf, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, spendOf, tracksInOrder } from './model.js'
+import { KINDS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, limitsOf, roundCall, waitingRound, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, spendOf, tracksInOrder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -146,8 +146,11 @@ try {
 const showSettings = (on) => {
   $('#project').hidden = on
   $('#settings').hidden = !on
-  $('#bar').hidden = on
-  if (on) loadSettings().catch((error) => say(`设置读不出来：${error.message}`, 'error'))
+  for (const row of ['#bar', '#lead-row', '#spend']) $(row).hidden = on
+  if (on) {
+    drawLimits()
+    loadSettings().catch((error) => say(`设置读不出来：${error.message}`, 'error'))
+  }
 }
 $('#open-settings').onclick = () => showSettings(true)
 $('#back').onclick = () => showSettings(false)
@@ -295,15 +298,37 @@ $('#r-start').onclick = async () => {
   const kind = $('#r-kind').value
   const slot = $('#r-slot').value.trim() || kind
   const each = Math.max(1, Math.min(5, Number($('#r-each').value) || 1))
-  const n = Object.keys(f.data.rounds).length + 1
   const id = newId('r')
   openRound = id // before the write: writing the round redraws, and the new stage is the one to show
-  f.data.rounds[id] = { n, track, kind, slot, ask: $('#r-ask').value.trim(), each, agents: chosen, refs: pickedCards().map(([cardId]) => cardId), by: me, at: now() }
+  // The same way the lead's open_round puts a round on the table.
+  const n = addRound(f.data, { id, track, kind, slot, ask: $('#r-ask').value.trim(), each, agents: chosen, refs: pickedCards().map(([cardId]) => cardId) }, me, now())
   $('#r-ask').value = ''
   $('#r-slot').value = ''
   $('#round-box').close()
   say(`第 ${n} 轮开始了：叫了 ${chosen.map(nameOf).join('、')}`)
-  for (const agent of chosen) await tell(agent, `片场第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。先用片场的 board 工具读卡桌（要求和参考都在那里），每张卡用 submit 交。${drawHint(kind)}`)
+  for (const agent of chosen) await tell(agent, roundCall({ n, slot, kind, each }))
+}
+
+// ─── the lead: woken when the person picks or skips (the next round is its to open), paused and handed back ──────
+function wakeLead(text) {
+  if (f.data.lead && !f.data.paused) tell(f.data.lead, text)
+}
+function picked(cardId) {
+  const card = f.data.cards[cardId]
+  const round = f.data.rounds[card?.round]
+  wakeLead(`片场第 ${round?.n} 轮「${round?.slot}」选好了：「${card?.title}」。用 board 看看，再按计划用 open_round 开下一轮；计划走完了，就在群里跟人说一句片子做好了。`)
+}
+function skipped(roundId) {
+  const round = f.data.rounds[roundId]
+  if (!round) return
+  round.skipped = true
+  wakeLead(`片场第 ${round.n} 轮「${round.slot}」人跳过了，不挑。按计划用 open_round 开下一轮。`)
+}
+function takeOverOrHandBack() {
+  if (f.data.paused) {
+    f.data.paused = false
+    tell(f.data.lead, '片场：人把卡桌交还给你了。先用 board 看看现在的样子，再接着按计划开轮（open_round）。')
+  } else f.data.paused = true
 }
 
 // ─── 批注: one dialog, drawn once. Ticking 「要作者交新版」 makes it a reject (the author is asked for a new version) ───────
@@ -359,7 +384,9 @@ document.addEventListener('click', (event) => {
   if (!el) return
   const { act, card, round } = el.dataset
   if (act === 'stage') { openRound = round; askOpen = false; draw() }
-  else if (act === 'pick') f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }
+  else if (act === 'pick') { f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }; picked(card) }
+  else if (act === 'skip') skipped(round)
+  else if (act === 'lead') takeOverOrHandBack()
   else if (act === 'note') ask(card)
   else if (act === 'open') { opened.has(card) ? opened.delete(card) : opened.add(card); draw() }
   else if (act === 'history') { histories.has(card) ? histories.delete(card) : histories.add(card); draw() }
@@ -386,7 +413,41 @@ function spineView(data) {
       <span class="node-text"><span class="node-slot">${round.slot}</span><small class="muted node-pick">${card?.title ?? ''}</small>
         <span class="tally">${cards.map(([cid]) => html`<i class="${cid === pick ? 'on' : eventsOf(data, cid).some((e) => e.kind === 'reject') ? 'x' : ''}"></i>`)}</span></span>
     </button>`
-  })}`
+  })}${(data.lead ? data.plan ?? [] : []).map((step, i) => html`<div class="node planned" data-key="plan:${i}:${step.slot}">
+      <span class="dot planned"></span>
+      <span class="node-text"><span class="node-slot">${step.slot}</span><small class="muted">计划</small></span>
+    </div>`)}`
+}
+
+/** The lead's limits in the settings view: the table's own, over the defaults; a box being typed in is left alone. */
+function drawLimits() {
+  const limits = limitsOf(f.data)
+  for (const [box, key] of [['#lim-rounds', 'rounds'], ['#lim-writers', 'writers']]) {
+    if (document.activeElement !== $(box)) $(box).value = String(limits[key])
+  }
+}
+for (const [box, key] of [['#lim-rounds', 'rounds'], ['#lim-writers', 'writers']]) {
+  $(box).addEventListener('change', () => {
+    const value = Math.round(Number($(box).value))
+    if (!(value >= 1)) return drawLimits()
+    f.data.limits = { ...limitsOf(f.data), [key]: value }
+  })
+}
+
+/** The lead and what it is doing, with the person's hand on it: pause (take over) or hand back. Empty without a lead. */
+function leadView(data) {
+  if (!data.lead) return ''
+  const waiting = waitingRound(data)
+  const status = data.paused
+    ? '已暂停，你在接管：组长不会开新的一轮'
+    : waiting
+      ? `在等你挑第 ${waiting.n} 轮「${waiting.slot}」（也可以跳过这一轮）`
+      : data.plan?.length
+        ? `下一轮会开「${data.plan[0].slot}」`
+        : '计划都走完了'
+  return html`<gugu-avatar user="${data.lead}" size="xs"></gugu-avatar>
+    <span>组长 ${nameOf(data.lead)}：${status}</span>
+    <button class="sm" data-act="lead">${data.paused ? '交还组长' : '暂停组长'}</button>`
 }
 
 function historyView(data, cardId) {
@@ -430,9 +491,14 @@ function stageView(data) {
   const pick = pickOfRound(data, openRound)
   const cards = Object.entries(data.cards).filter(([, c]) => c.round === openRound)
     .sort(([a, x], [b, y]) => (b === pick) - (a === pick) || (x.at ?? '').localeCompare(y.at ?? ''))
+  // Who opened it: with a lead at the table, the rounds it opened and the ones the person did are told apart.
+  const opener = data.lead ? (round.by === data.lead ? '组长开的' : round.by === me ? '你开的' : `${nameOf(round.by)} 开的`) : ''
+  const canSkip = data.lead && !pick && !round.skipped
   return html`<header class="stage-head" data-key="head:${openRound}">
       <h2>${round.slot}</h2>
       <span class="writers">${(round.agents ?? []).map((a) => html`<gugu-avatar user="${a}" size="xs"></gugu-avatar>`)}</span>
+      ${opener ? html`<small class="muted">${opener}${round.skipped ? ' · 跳过了' : ''}</small>` : ''}
+      ${canSkip ? html`<button class="sm" data-act="skip" data-round="${openRound}">跳过这一轮</button>` : ''}
     </header>
     ${round.ask ? html`<p class="muted ask ${askOpen ? 'open' : ''}" data-act="ask">${round.ask}</p>` : ''}
     <div class="cards">${cards.map(([id, card]) => cardView(data, id, card, pick))}</div>`
@@ -452,6 +518,7 @@ function draw() {
   render($('#spine'), spineView(data))
   render($('#stage'), stageView(data))
   $('#spend').textContent = spendLine(data)
+  render($('#lead-row'), leadView(data))
   const rules = Object.values(data.rules).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
   render($('#rules'), html`<small class="muted">底子是 promo-video skill 里 director-rulings.md 的 23 条；下面是在这张卡桌上被打回后升上来的${rules.length ? '' : '（还没有）'}。</small>
     <ol start="24">${rules.map((r) => html`<li data-key="${r.from}">${r.text}</li>`)}</ol>`)
@@ -461,7 +528,10 @@ function draw() {
     document.querySelector('.node[aria-current="step"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }
   if ($('#round-box').open) drawRoundForm()
-  if (!$('#settings').hidden) drawWriters()
+  if (!$('#settings').hidden) {
+    drawWriters()
+    drawLimits()
+  }
   // A card's text is markdown, drawn with gugu's own renderer — again after every render, which empties these boxes.
   for (const box of document.querySelectorAll('[data-md]')) md.render(box, data.cards[box.dataset.md]?.text ?? '')
 }

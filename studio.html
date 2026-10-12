@@ -14,6 +14,8 @@
   <button id="open-round" aria-label="开一轮"><gugu-icon name="plus"></gugu-icon></button>
   <button id="open-settings" aria-label="设置"><gugu-icon name="settings"></gugu-icon></button>
 </header>
+<!-- The lead agent and what it is doing (with pause / hand back), when the table has one. -->
+<div id="lead-row"></div>
 <!-- What the table has cost so far: a line of its own under the header, empty (and hidden) until something was paid for. -->
 <small id="spend" class="muted"></small>
 
@@ -42,6 +44,12 @@
     <label>配音的声音 <select id="voice"></select></label>
     <div class="row"><button class="primary" id="img-save">保存并检查</button><button id="img-clear">清掉密钥</button><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">获取密钥</a></div>
     <small class="muted" id="img-where"></small>
+  </section>
+  <section class="stack">
+    <h5>组长</h5>
+    <small class="muted">组长 agent 自己开轮时的上限。你不挑，它就不开下一轮；到了上限，它会先问你。这两项写在卡桌上，群里的人都看得到。</small>
+    <label>这张卡桌最多几轮 <input id="lim-rounds" type="number" min="1" max="50" /></label>
+    <label>每轮最多几个写手 <input id="lim-writers" type="number" min="1" max="10" /></label>
   </section>
   <section class="stack">
     <h5>导演法典</h5>

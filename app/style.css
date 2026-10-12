@@ -7,6 +7,9 @@ body { margin: 0; }
 /* header: name, brief, 开一轮, settings */
 #bar { display: flex; align-items: center; gap: var(--em-spacing-sm); padding: var(--em-spacing-sm) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
 #bar #name { white-space: nowrap; }
+#lead-row { display: flex; align-items: center; gap: var(--em-spacing-sm); flex-wrap: wrap; padding: var(--em-spacing-xs) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
+#lead-row:empty, #lead-row[hidden], #spend[hidden] { display: none; }
+#lead-row span { flex: 1; min-width: 0; }
 #spend { display: block; padding: var(--em-spacing-xs) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
 #spend:empty { display: none; }
 #brief { flex: 1; min-width: 0; resize: none; border-color: transparent; background: none; color: var(--em-foreground-muted); field-sizing: content; max-height: 6lh; }
@@ -25,6 +28,10 @@ body { margin: 0; }
 .dot.chosen { background: var(--em-accent-9); }
 .dot.chosen::after { content: ''; width: 6px; height: 11px; border: solid var(--em-accent-contrast); border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
 .dot.empty { border: 2px dashed var(--em-border-1); }
+/* A round the lead plans but has not opened: dashed and quiet, not a button. */
+.node.planned { opacity: 0.55; cursor: default; }
+.node.planned:hover { background: none; }
+.dot.planned { border: 2px dashed var(--em-border-1); width: 24px; height: 24px; margin: 6px; }
 .node-text { display: grid; min-width: 0; }
 .node-slot, .node-pick { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tally { display: flex; gap: 3px; margin-top: 3px; }

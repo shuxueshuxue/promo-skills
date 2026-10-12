@@ -19,11 +19,17 @@
 //   names     { [user:…]: name }                                 members' names as the page last saw them (who wrote a card after they left)
 //   spend     { [id]: { tool: voice | image, usd, unpriced?, by, at, what } } what one call of the App's own tools paid the
 //             person's media service, written by that tool (unpriced: purchases the service had not priced yet)
+//   lead      user:…  the agent that leads the table: made it with open_round and opens its rounds (absent: the person does)
+//   plan      [{ kind, slot, track }]   the rounds the lead means to open next, as it last said (only it writes it)
+//   paused    true while the person has taken the table over from the lead (open_round opens nothing)
+//   limits    { rounds, writers, each }   the person's own, over LIMITS
+//   rounds[].skipped   the person passed a round without a pick: the lead may go on
 // Everything many people and agents add to is a map by id (no arrays to fight over).
 
-export const KINDS = ['叙事', '文案', '分镜', '变式', '片头', '整片', '宣传稿', '其他']
+export const KINDS = ['叙事', '文案', '分镜', '配音', '变式', '片头', '整片', '宣传稿', '其他']
 /** What a whisper about a card of this kind adds: pictures come from the App's own image tool, whoever draws. */
-export const drawHint = (kind) => (kind === '分镜' ? '画面用片场的 image 工具出。' : '')
+export const drawHint = (kind) =>
+  kind === '分镜' ? '画面用片场的 image 工具出。' : kind === '配音' ? '小样用片场的 voice 工具出，一个声音一张卡（submit → audio）。' : kind === '整片' ? '旁白用片场的 voice 工具配，配好的片子用 submit → video 交。' : ''
 
 const time = (iso) => Date.parse(iso ?? '') || 0
 
@@ -165,6 +171,34 @@ export function roundComplete(data, roundId) {
 }
 
 /** The picture a card shows first (its spine dot, its first face): a clip's cover, else its first file. */
+/**
+ * What a table keeps unless the person changes it in its settings (`limits` on the table): rounds on the table, writers
+ * a round may call, cards each. They keep a lead agent from spending without the person: rounds open one at a time,
+ * and only after the person picked.
+ */
+export const LIMITS = { rounds: 8, writers: 4, each: 3 }
+export const limitsOf = (data) => ({ ...LIMITS, ...(data.limits ?? {}) })
+
+/** What a writer is woken with when a round opens — the same words whoever opened it. */
+export const roundCall = ({ n, slot, kind, each }) =>
+  `片场第 ${n} 轮：${slot}（${kind}），每人 ${each} 张。先用片场的 board 工具读卡桌（要求和参考都在那里），每张卡用 submit 交。${drawHint(kind)}`
+
+/** A round put on the table — by the person on the page or by the lead's open_round, one way for both. Its number. */
+export function addRound(data, { id, track, kind, slot, ask, each, agents, refs }, by, at) {
+  const n = Object.keys(data.rounds).length + 1
+  data.rounds[id] = { n, track, kind, slot, ask: ask ?? '', each, agents, refs: refs ?? [], by, at }
+  return n
+}
+
+/** The picked card of every round so far: what a new round builds on unless it names its own. */
+export const picksSoFar = (data) => roundsInOrder(data).map(([id]) => pickOfRound(data, id)).filter(Boolean)
+
+/** The first round the person has neither picked from nor skipped: what a lead waits for before the next one. */
+export function waitingRound(data) {
+  for (const [id, round] of roundsInOrder(data)) if (!round.skipped && !pickOfRound(data, id)) return { id, n: round.n, slot: round.slot }
+  return null
+}
+
 /** What this table has cost so far, by tool: the sum of what the tools paid, and how many payments have no amount yet. */
 export function spendOf(data) {
   const byTool = {}

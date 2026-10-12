@@ -1,5 +1,17 @@
 # 片场 (Studio) — changes
 
+## 0.7.0 (2026-10-12)
+
+- **A lead agent opens the rounds (`open_round`).** The person says "做条 xx 的片子" in the group; the agent asked makes
+  the table there (the first call: title and brief) and is its lead; each call opens one round, wakes its writers and
+  may rewrite the plan of the rounds after it. The person opens rounds on the page the same way, through the same code.
+- **The person's pick is the brake:** a round opens only when every earlier one has a pick or was skipped; at most 8
+  rounds a table and 4 writers a round (the person can change both in the table's settings); nothing opens while the
+  person has taken over.
+- **On the page:** the lead and what it waits for, with 暂停组长 / 交还组长; planned rounds as dashed nodes on the
+  spine; who opened each round; 跳过这一轮; the person's pick (or skip) wakes the lead.
+- A 配音 round kind (voice samples).
+
 ## 0.6.0 (2026-10-12)
 
 - **Narration (`voice`):** a film's lines, each with the second it starts, are spoken with the voice model on the
