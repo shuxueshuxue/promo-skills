@@ -65,7 +65,9 @@ function table() {
   }
   return { data, uploads }
 }
-const clipDirs = () => readdirSync(tmpdir()).filter((name) => name.startsWith('studio-clip-')).length
+// submit's own folders only (mkdtemp adds 6 characters): another test file's work folder is not counted.
+const clipDirs = () => readdirSync(tmpdir()).filter((name) => /^studio-clip-[A-Za-z0-9]{6}$/.test(name)).length
+const shaOf = (p) => createHash('sha256').update(readFileSync(path.join(work, p))).digest('hex')
 
 test('a clip it takes: its cover and strip go to the table\'s chat, and the card keeps them with its check', { skip: noFfmpeg }, async () => {
   const p = clip('voiced.mp4', 'sine=frequency=440:duration=4')
@@ -74,7 +76,9 @@ test('a clip it takes: its cover and strip go to the table\'s chat, and the card
   const answer = await hand(p)
   assert.equal(uploads.length, 1)
   assert.deepEqual(uploads[0].place, { chat: 'chat-1' })
-  assert.deepEqual(uploads[0].files.map((f) => [f.name, f.type]), [['voiced-cover.jpg', 'image/jpeg'], ['voiced-strip.jpg', 'image/jpeg']])
+  // Named by the clip and its hash: two cards' voiced.mp4 do not share a name in the group folder.
+  const sha8 = shaOf(p).slice(0, 8)
+  assert.deepEqual(uploads[0].files.map((f) => [f.name, f.type]), [[`voiced-${sha8}-cover.jpg`, 'image/jpeg'], [`voiced-${sha8}-strip.jpg`, 'image/jpeg']])
   const card = data.cards[answer.card]
   assert.equal(card.video.cover, 'item-1-0')
   assert.equal(card.video.strip, 'item-1-1')
@@ -100,4 +104,27 @@ test('a card refused for its own reasons (no title) sends no pictures to the cha
   await assert.rejects(hand(p, call, ''), /a card needs a title/)
   assert.deepEqual([uploads, data.cards], [[], {}])
   assert.equal(clipDirs(), before)
+})
+
+test('a cover that cannot be made: nothing reaches the chat or the table, its folder is gone, and the error names no path', { skip: (noFfmpeg || process.platform === 'win32') && 'needs ffmpeg and a POSIX shell' }, async () => {
+  const p = clip('cover-fails.mp4', 'sine=frequency=440:duration=4')
+  // An ffmpeg that fails only at the cover (the one call with -ss), as a real one would on a broken file.
+  const bin = mkdtempSync(path.join(tmpdir(), 'studio-fake-ffmpeg-'))
+  writeFileSync(path.join(bin, 'ffmpeg'), `#!/bin/sh\ncase " $* " in *" -ss "*) echo "${work}/renders/cover-fails.mp4: Invalid data found when processing input" >&2; exit 1;; esac\nexec "${tools.ffmpeg}" "$@"\n`, { mode: 0o755 })
+  symlinkSync(tools.ffprobe, path.join(bin, 'ffprobe'))
+  const saved = process.env.STUDIO_FFMPEG
+  process.env.STUDIO_FFMPEG = path.join(bin, 'ffmpeg')
+  try {
+    const { data, uploads } = table()
+    const before = clipDirs()
+    const refused = await hand(p).catch((error) => error)
+    assert.match(refused.message, /^renders\/cover-fails\.mp4 was not handed in: making the cover failed on .+: cover-fails\.mp4: Invalid data found when processing input$/)
+    assert.ok(!refused.message.includes(work), refused.message)
+    assert.deepEqual([uploads, data.cards], [[], {}])
+    assert.equal(clipDirs(), before)
+  } finally {
+    if (saved === undefined) delete process.env.STUDIO_FFMPEG
+    else process.env.STUDIO_FFMPEG = saved
+    rmSync(bin, { recursive: true, force: true })
+  }
 })

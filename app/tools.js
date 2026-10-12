@@ -51,7 +51,7 @@ const PLAYABLE_BYTES = 25 * 1024 * 1024
 /** The original of a clip, read where the agent works (gugu stamps which session and which working copy — never its word). */
 async function originalOf(video, { session, workspaceRoot }) {
   if (!session || !workspaceRoot) {
-    throw new Error('this gugu does not tell the tool which session you are in: hand the clip in as a file instead (workspace_upload_file, then files)')
+    throw new Error('this gugu does not tell the tool which session you are in: hand the clip in as a file instead (put it in the chat\'s group folder, then give its item id in files)')
   }
   const rel = workingCopyPath(video.path)
   if (!rel) throw new Error(`video.path is a path inside your working copy, like renders/cut.mp4 — not ${JSON.stringify(video.path)}`)
@@ -76,18 +76,31 @@ async function originalOf(video, { session, workspaceRoot }) {
   // Read here, where it was made: the check first (a clip nobody can hear is refused before anything is written),
   // then its cover and strip, made into a folder of their own for submit to put in the chat.
   const tools = ffmpegTools()
-  const check = await checkClip(abs, tools)
+  let check
+  try {
+    check = await checkClip(abs, tools)
+  } catch (error) {
+    throw new Error(`${rel} was not handed in: ${error.message}`)
+  }
   const refusal = refusalOf(check)
   if (refusal) throw new Error(`${rel} was not handed in: ${refusal}`)
   const dir = mkdtempSync(path.join(tmpdir(), 'studio-clip-'))
-  const name = path.basename(rel, path.extname(rel))
+  // Named by the clip and the first characters of its hash: two cards' film.mp4 are two names in the group folder.
+  const name = `${path.basename(rel, path.extname(rel))}-${sha256.slice(0, 8)}`
   const round = (n) => Math.round(n * 100) / 100
-  return {
-    pictures: {
+  let pictures
+  try {
+    pictures = {
       dir,
       cover: await makeCover(abs, path.join(dir, `${name}-cover.jpg`), check.seconds, tools),
       strip: await makeStrip(abs, path.join(dir, `${name}-strip.jpg`), check.seconds, tools),
-    },
+    }
+  } catch (error) {
+    rmSync(dir, { recursive: true, force: true })
+    throw new Error(`${rel} was not handed in: ${error.message}`)
+  }
+  return {
+    pictures,
     video: {
       seconds: round(check.seconds),
       width: check.width,
@@ -176,7 +189,7 @@ export const board = {
 
 export const submit = {
   description:
-    'Hand in one card for a round of a Studio (片场) card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat first with workspace_upload_file (give their item ids), and/or a clip (`video`: just its path in your working copy — submit checks it and makes its cover and strip). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card.',
+    'Hand in one card for a round of a Studio (片场) card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat\'s group folder first (give their item ids), and/or a clip (`video`: just its path in your working copy — submit checks it and makes its cover and strip). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card.',
   inputSchema: {
     type: 'object',
     required: ['board', 'round'],
@@ -313,7 +326,7 @@ export const check_image_key = {
 
 export const image = {
   description:
-    'Make one image for a Studio (片场) card — a storyboard frame, a poster, a key visual — with the image model the person set up in the card table (OpenRouter, their key). Answers a local file path: put it in the chat with workspace_upload_file (mime_type image/png), then give its item id in submit → files, and its cost in submit → cost.usd. Use it whichever harness you are; a harness with its own image tool may use that instead.',
+    'Make one image for a Studio (片场) card — a storyboard frame, a poster, a key visual — with the image model the person set up in the card table (OpenRouter, their key). Answers a local file path: put it in the chat\'s group folder (as image/png), then give its item id in submit → files, and its cost in submit → cost.usd. Use it whichever harness you are; a harness with its own image tool may use that instead.',
   inputSchema: {
     type: 'object',
     required: ['prompt'],
@@ -362,7 +375,7 @@ export const image = {
       model: settings.imageModel || IMAGE_MODEL,
       seconds: Math.round((Date.now() - started) / 1000),
       usd: Number(usage.cost) || Number(usage.cost_details?.upstream_inference_cost) || 0,
-      next: 'workspace_upload_file this file_path into the chat (mime_type image/png), then pass its item id in submit → files',
+      next: 'put this file_path in the chat\'s group folder (as image/png), then pass its item id in submit → files',
     }
   },
 }

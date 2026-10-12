@@ -49,8 +49,8 @@ on that file. It tells you:
      in which state (what is on it, who has said what), the camera's move — that the capture step then films for real
      (promo-video skill). Hand that in as the card's text. Pictures help the person pick: a real screenshot or recording
      frame of that screen is best; a drawn frame (片场's `image` tool, the person's image model; a Codex agent's own
-     image tool) is a sketch of the composition, never the product. Put each picture in **the same chat** with
-     `workspace_upload_file` (`mime_type` `image/png`) and give the item ids in `files`. When the `image` tool says it
+     image tool) is a sketch of the composition, never the product. Put each picture in **the same chat's** group
+     folder (as `image/png`) and give the item ids in `files`. When the `image` tool says it
      cannot draw, take its answer as it is — the description is the card — and never draw the frame with a script;
    - posters and key visuals: 片场's `image` tool, uploaded the same way (`references`, absolute paths, keep a
      mascot's or a screenshot's look);
@@ -60,7 +60,7 @@ on that file. It tells you:
      hand it in with `video`, not `files`:
      `video.path` is that render in your working copy (relative, e.g. `renders/cut.720p.mp4`) — that is all you give.
      The tool reads the clip where you work: it checks it (length, loudness, the longest silence, black or white
-     screens — a clip nobody can hear is refused, so mux the narration in first), makes its cover and its strip of 8
+     screens — a clip nobody can hear is refused, so mux the narration in first; so is one longer than 10 minutes), makes its cover and its strip of 8
      frames and puts those two in the chat, and keeps the clip's size and hash. The check comes back in the answer and
      goes on the card; the person plays the clip from the table, read from your machine. Don't move or overwrite it
      after you hand it in — a new cut is a new version of the card.

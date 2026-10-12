@@ -6,7 +6,7 @@ import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
-import { blankStretches, checkClip, ffmpegTools, longestSilence, makeCover, makeStrip, parseLoudness, parseProbe, refusalOf } from '../app/clip.js'
+import { MAX_SECONDS, blankStretches, checkClip, ffmpegTools, longestSilence, makeCover, makeStrip, parseLoudness, parseProbe, refusalOf, step, withoutPaths } from '../app/clip.js'
 
 test('ffprobe: length, picture size, and whether there is a sound track', () => {
   const probe = parseProbe({ format: { duration: '31.100000' }, streams: [{ codec_type: 'video', width: 1280, height: 720 }, { codec_type: 'audio' }] })
@@ -38,6 +38,19 @@ test('refused: no picture, no sound track, or a sound nobody can hear (the first
   assert.match(refusalOf({ ...ok, hasSound: false, lufs: null }), /no sound \(no sound track\)/)
   assert.match(refusalOf({ ...ok, lufs: -70 }), /no sound \(loudness -70 LUFS\).*mux the narration in/)
   assert.match(refusalOf({ ...ok, lufs: null }), /no sound \(loudness -inf LUFS\)/)
+  assert.match(refusalOf({ ...ok, seconds: MAX_SECONDS + 1 }), /10\.0 minutes long; the table takes clips of up to 10 minutes/)
+})
+
+test('a step on a clock: one that runs too long is stopped and said as the step and the computer', async () => {
+  await assert.rejects(step('measuring the sound', process.execPath, ['-e', 'setTimeout(() => {}, 10000)'], 1000), /^Error: measuring the sound took longer than 1 s on .+ and was stopped$/)
+})
+
+test('a step that fails says why in one line, with no path on this machine in it', async () => {
+  const failing = ['-e', 'console.error("ffmpeg version x"); console.error("/Users/someone/work/renders/film.mp4: Invalid data found"); process.exit(1)']
+  const refused = await step('making the cover', process.execPath, failing, 5000).catch((error) => error)
+  assert.match(refused.message, /^making the cover failed on .+: film\.mp4: Invalid data found$/)
+  assert.doesNotMatch(refused.message, /Users|someone|-e/)
+  assert.equal(withoutPaths('C:\\Users\\x\\film.mp4: bad'), 'film.mp4: bad')
 })
 
 // Real clips, made here with ffmpeg's own test sources.
@@ -45,7 +58,8 @@ let tools = null
 try {
   tools = ffmpegTools()
 } catch {}
-const work = mkdtempSync(path.join(tmpdir(), 'studio-clip-test-'))
+// Not `studio-clip-…`: that is the name submit's own folders have, which tools.test counts.
+const work = mkdtempSync(path.join(tmpdir(), 'studio-test-clips-'))
 after(() => rmSync(work, { recursive: true, force: true }))
 const make = (name, args) => {
   const out = path.join(work, name)
@@ -86,6 +100,15 @@ test('a black stretch is found and kept for the card', { skip: !tools && 'no ffm
   const check = await checkClip(clip, tools)
   assert.equal(check.black.length, 1)
   assert.ok(check.black[0][0] < 0.1 && Math.abs(check.black[0][1] - 1.5) < 0.2, JSON.stringify(check.black))
+})
+
+test('a clip over 10 minutes is answered from its header, before the passes that take as long as the clip', { skip: !tools && 'no ffmpeg here' }, async () => {
+  const long = make('long.mp4', ['-f', 'lavfi', '-i', `color=black:size=64x36:rate=1:duration=${MAX_SECONDS + 60}`, '-f', 'lavfi', '-i', `anullsrc=r=8000:cl=mono`, '-t', String(MAX_SECONDS + 60), '-c:a', 'aac'])
+  const started = Date.now()
+  const check = await checkClip(long, tools)
+  assert.ok(Date.now() - started < 3000, `${Date.now() - started} ms`)
+  assert.equal(check.lufs, null)
+  assert.match(refusalOf(check), /11\.0 minutes long/)
 })
 
 test('the cover and the strip are made as jpgs', { skip: !tools && 'no ffmpeg here' }, async () => {

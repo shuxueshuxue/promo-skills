@@ -7,7 +7,7 @@ import type { Caption, FragmentEntry } from "./lib/types";
 
 // 变式一 zoom-follow：按事件时间轴做后期虚拟运镜（推近→保持→接力/回拉）。
 // Devin 镜4/5/10 的「后期推拉」手法。片段的旁白（captions.json 的 audio）照样出声，只是不画字幕条：
-// 片场（原名抽卡台）第 4 轮两张卡写了旁白、成片却是静音（-91 dB）——这个变式原来不放音频。
+// 片场第 4 轮两张卡写了旁白、成片却是静音（-91 dB）——这个变式原来不放音频。
 export const ZoomFollow: React.FC<{ entry: FragmentEntry }> = ({ entry }) => {
   const frame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
