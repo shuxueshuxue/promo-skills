@@ -6,6 +6,13 @@ import path from 'node:path'
 import { CLOCKS, parseLoudness, step } from './clip.js'
 import { VOICES, VOICE_MODEL } from './settings.js'
 
+/**
+ * How long a voice call waits for the service to price what it bought (its record comes ~12 s later), and how long the
+ * next call spends catching up on what was not priced; tests shorten them. Here, not in tools.js: every export of
+ * tools.js is a tool, and an object that is not one keeps the whole program from starting.
+ */
+export const PRICING = { wait: 20_000, catchUp: 8_000 }
+
 /** Narration is brought to this integrated loudness (EBU R128), the level the films on the first table were judged at. */
 export const TARGET_LUFS = -16
 

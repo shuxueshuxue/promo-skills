@@ -5,7 +5,7 @@ import { createReadStream, mkdirSync, mkdtempSync, readFileSync, realpathSync, r
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MAX_SECONDS, checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
-import { costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
+import { PRICING, costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
 import { KINDS, addRound, answered, feedbackOf, limitsOf, normalizeTable, picksSoFar, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, VOICE_MODEL, parseSettings } from './settings.js'
 
@@ -160,9 +160,6 @@ async function recordSpend(board, entry) {
     f.close()
   }
 }
-
-/** How long a call waits for the service to price what it bought (its record comes ~12 s later); tests shorten it. */
-export const PRICING = { wait: 20_000, catchUp: 8_000 }
 
 /**
  * Purchases an earlier call could not price in time: asked again (one short deadline for all), and the table's total

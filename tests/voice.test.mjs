@@ -102,7 +102,8 @@ after(() => {
   rmSync(data, { recursive: true, force: true })
 })
 process.env.GUGU_EXTENSION_DATA_DIR = data
-const { PRICING, submit, voice } = await import('../app/tools.js')
+const { submit, voice } = await import('../app/tools.js')
+const { PRICING } = await import('../app/voice.js')
 const call = { agent: 'user:a', session: 's-1', workspaceRoot: work }
 const mp3 = (seconds) => {
   const out = path.join(data, `tone-${seconds}.mp3`)

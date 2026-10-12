@@ -128,3 +128,13 @@ test('a cover that cannot be made: nothing reaches the chat or the table, its fo
     rmSync(bin, { recursive: true, force: true })
   }
 })
+
+test('every export of tools.js is a tool — gugu serves each one, and anything else keeps the program from starting', async () => {
+  const exported = await import('../app/tools.js')
+  for (const [name, tool] of Object.entries(exported)) {
+    assert.match(name, /^[a-z][a-z_]*$/, `${name}: a tool name`)
+    assert.equal(typeof tool?.description, 'string', `${name}: a description`)
+    assert.equal(tool.inputSchema?.type, 'object', `${name}: an input schema`)
+    assert.equal(typeof tool.run, 'function', `${name}: run`)
+  }
+})
