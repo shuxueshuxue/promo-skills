@@ -282,7 +282,6 @@ export const submit = {
       },
       card: { type: 'string', description: 'Your own card to revise (a new version of it). Someone else\'s card: pass it in parents instead.' },
       parents: { type: 'array', items: { type: 'string' }, description: 'Cards this one mixes or builds on.' },
-      model: { type: 'string', description: 'The model you are (shown on the card).' },
       cost: {
         type: 'object',
         properties: { usd: { type: 'number' }, seconds: { type: 'number' }, tokens: { type: 'number' } },
@@ -290,7 +289,7 @@ export const submit = {
       },
     },
   },
-  async run(args, { agent, session, workspaceRoot }) {
+  async run(args, { agent, session, workspaceRoot, model }) {
     if (!agent) throw new Error('submit is for agents (gugu stamps who calls)')
     // Read before the table is opened: a clip that is not there, or that nobody can hear, is said before anything is written.
     const clip = args.video ? await originalOf(args.video, { session, workspaceRoot }) : null
@@ -323,7 +322,8 @@ export const submit = {
         title,
         text,
         files,
-        model: args.model ? String(args.model) : prev.model ?? null,
+        // The model gugu runs the caller's session on, stamped on the call — not the agent's word; none stamped, none shown.
+        model: model ?? null,
         cost: { usd: Number(args.cost?.usd) || 0, seconds: Number(args.cost?.seconds) || 0, tokens: Number(args.cost?.tokens) || 0 },
         ...((video ?? prev.video) ? { video: video ?? plainVideo(prev.video) } : {}),
       }

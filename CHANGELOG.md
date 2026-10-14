@@ -1,5 +1,18 @@
 # 片场 (Studio) — changes
 
+## 0.7.4 (2026-10-14)
+
+For gugu Beta 0.2.54-beta.77 and later (it reads files across machines and stamps a tool call's model).
+
+- **The original plays on another computer too:** the App asks for `files:read:all-machines` instead of `files:read`,
+  so a card's original film, left in the writer's working copy on the machine that made it, opens from any of the
+  person's computers (read only). It is asked once, at install.
+- **A card shows the model gugu runs its writer on** (`call.model`), not the model the agent says it is: `submit` has no
+  `model` argument any more. A writer whose session never chose a model shows none, rather than a guess or the last
+  version's.
+- When the original cannot be opened, the card says so in one way: not found (the session or the file is gone), or
+  what went wrong, naming the computer it is on.
+
 ## 0.7.3 (2026-10-12)
 
 Review r5.

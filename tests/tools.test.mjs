@@ -129,6 +129,15 @@ test('a cover that cannot be made: nothing reaches the chat or the table, its fo
   }
 })
 
+test("a card's model is the one gugu stamps on the call, never the agent's word; a version without one shows none", async () => {
+  const { data } = table()
+  const first = await submit.run({ board: 'table', round: 'r1', title: 't', text: 'a', model: 'what it says it is' }, { ...call, model: 'platform:glm-5.3-flash' })
+  assert.equal(data.cards[first.card].model, 'platform:glm-5.3-flash')
+  await submit.run({ board: 'table', round: 'r1', card: first.card, text: 'b', model: 'what it says it is' }, call)
+  assert.equal(data.cards[first.card].model, null)
+  assert.equal(data.cards[first.card].versions[1].model, 'platform:glm-5.3-flash')
+})
+
 test('every export of tools.js is a tool — gugu serves each one, and anything else keeps the program from starting', async () => {
   const exported = await import('../app/tools.js')
   for (const [name, tool] of Object.entries(exported)) {

@@ -100,11 +100,9 @@ async function loadOriginal(cardId, video) {
     const sha = video.sha256 ? hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())) : null
     originals.set(key, { url: URL.createObjectURL(blob), changed: Boolean(sha && sha !== video.sha256) })
   } catch (error) {
-    const why = error.code === 'file-unavailable'
-      ? `原片在交卡的那台电脑上，它现在连不上（${error.message}）`
-      : error.code === 'not-found'
-        ? `这里读不到原片：它在交卡那条会话的工作区里（${error.message}）`
-        : `原片打不开：${error.message}`
+    const why = error.code === 'not-found'
+      ? `找不到原片：交卡的那条会话，或它工作区里的这个文件，已经不在了（${error.message}）`
+      : `原片打不开：${error.message}`
     originals.set(key, { error: why })
   } finally {
     file?.close()
