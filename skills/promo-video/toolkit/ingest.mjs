@@ -6,9 +6,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const TOOLKIT = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = path.resolve(TOOLKIT, '..') // the film's folder: fragments/, renders/, review/
+const RENDERER = path.join(TOOLKIT, 'renderer')
 const FRAG = path.join(ROOT, 'fragments')
-const PUB = path.join(ROOT, 'renderer', 'public', 'frag')
+const PUB = path.join(RENDERER, 'public', 'frag')
+
+// A box outside the recorded viewport makes the camera clamp to the frame edge and film empty page (2026-10-07 spike:
+// a box at y=3158 in a 1000-high viewport, white for 0.97 s). Refused here, with the beat named, before anything renders.
+function boxOutside(box, viewport) {
+  return box.x < -1 || box.y < -1 || box.x + box.width > viewport.w + 1 || box.y + box.height > viewport.h + 1
+}
 
 const entries = []
 for (const id of fs.readdirSync(FRAG).sort()) {
@@ -20,6 +28,10 @@ for (const id of fs.readdirSync(FRAG).sort()) {
     continue
   }
   const ev = JSON.parse(fs.readFileSync(eventsPath, 'utf8'))
+  const outside = ev.events.filter((e) => e.box && boxOutside(e.box, ev.viewport))
+  if (outside.length) {
+    throw new Error(`${id}: event box outside the ${ev.viewport.w}×${ev.viewport.h} viewport — ${outside.map((e) => `${e.label} ${JSON.stringify(e.box)}`).join('; ')}. Re-shoot: record the box once the page has stopped moving.`)
+  }
   const videoSrc = path.join(dir, 'raw', ev.video)
   if (!fs.existsSync(videoSrc)) {
     console.warn(`[skip] ${id}: events.json 指向的视频不存在: ${ev.video}`)
@@ -92,5 +104,5 @@ import type { FragmentEntry } from "./lib/types";
 
 export const FRAGMENTS: FragmentEntry[] = ${JSON.stringify(entries, null, 2)};
 `
-fs.writeFileSync(path.join(ROOT, 'renderer', 'src', 'manifest.ts'), manifest)
+fs.writeFileSync(path.join(RENDERER, 'src', 'manifest.ts'), manifest)
 console.log(`manifest.ts: ${entries.length} fragments`)

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>片场</title>
+<link rel="stylesheet" href="app/style.css" />
+</head>
+<body>
+<div id="status" role="status"></div>
+<header id="bar">
+  <strong id="name"></strong>
+  <textarea id="brief" rows="1" aria-label="需求" placeholder="一句话：要做什么、给谁看、多长"></textarea>
+  <button id="open-round" aria-label="新建轮次"><gugu-icon name="plus"></gugu-icon></button>
+  <button id="open-settings" aria-label="设置"><gugu-icon name="settings"></gugu-icon></button>
+</header>
+<!-- The lead agent and what it is doing (with pause / hand back), when the table has one. -->
+<div id="lead-row"></div>
+<!-- What the table has cost so far: a line of its own under the header, empty (and hidden) until something was paid for. -->
+<small id="spend" class="muted"></small>
+
+<!-- The project: the stages down the left, the open one's candidates on the right. -->
+<main id="project">
+  <nav id="spine" aria-label="阶段"></nav>
+  <section id="stage"></section>
+</main>
+
+<!-- Settings: their own place, no card in it. -->
+<main id="settings" hidden>
+  <header class="settings-head">
+    <button id="back" aria-label="回到项目"><gugu-icon name="chevron-left"></gugu-icon></button>
+    <strong>设置</strong>
+  </header>
+  <section class="stack">
+    <h5>写手</h5>
+    <small class="muted">新建轮次时默认选择的 Agent。</small>
+    <div id="writers" class="stack"></div>
+  </section>
+  <section class="stack">
+    <h5>图像与配音 <small class="muted" id="img-state"></small></h5>
+    <small class="muted">图像与配音工具使用你的 OpenRouter 密钥，费用计入 OpenRouter 账单，并在项目顶部汇总。密钥仅保存在当前设备，不写入群内共享的卡桌文件。</small>
+    <label>OpenRouter API 密钥 <input id="img-key" type="password" autocomplete="off" /></label>
+    <label>图像模型 <input id="img-model" /></label>
+    <label>配音音色 <select id="voice"></select></label>
+    <div class="row"><button class="primary" id="img-save">保存并检查</button><button id="img-clear">清除密钥</button><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">获取密钥</a></div>
+    <small class="muted" id="img-where"></small>
+  </section>
+  <section class="stack">
+    <h5>组长</h5>
+    <small class="muted">组长在成员选卡或跳过本轮后继续，达到上限时请求确认。以下设置保存在群内共享的卡桌文件中。</small>
+    <label>项目轮次上限 <input id="lim-rounds" type="number" min="1" max="50" /></label>
+    <label>每轮写手上限 <input id="lim-writers" type="number" min="1" max="10" /></label>
+  </section>
+  <section class="stack">
+    <h5>导演法典</h5>
+    <div id="rules"></div>
+  </section>
+</main>
+
+<dialog id="round-box">
+  <form method="dialog" class="stack">
+    <strong>新建轮次</strong>
+    <div class="row">
+      <label>制作方向 <select id="r-track"></select></label>
+      <label id="r-new-track-label" hidden>方向名称 <input id="r-new-track" placeholder="例如：海报" /></label>
+    </div>
+    <div class="row">
+      <label>内容类型 <select id="r-kind"></select></label>
+      <label>阶段名称 <input id="r-slot" placeholder="例如：叙事主线、第 3 拍" /></label>
+      <label>每人提交数量 <input id="r-each" type="number" min="1" max="5" value="2" /></label>
+    </div>
+    <label>本轮要求 <textarea id="r-ask" rows="2" placeholder="可留空，按项目需求和已选方案制作"></textarea></label>
+    <fieldset><legend>参与写手</legend><div id="r-agents" class="agents"></div></fieldset>
+    <small class="muted" id="r-refs"></small>
+    <div class="row"><button type="button" id="r-cancel">取消</button><button type="button" class="primary" id="r-start">开始</button></div>
+  </form>
+</dialog>
+
+<!-- outside main: a .stack zeroes its children's margins, and a modal dialog is centred by margin: auto -->
+<dialog id="say-box">
+  <div class="stack">
+    <strong id="say-title"></strong>
+    <textarea id="say-text" rows="4" placeholder="填写评价或修改要求"></textarea>
+    <label id="say-reject-row"><input type="checkbox" id="say-reject" /> <strong>退回修改，要求提交新版</strong></label>
+    <label><input type="checkbox" id="say-rule" /> 同时设为项目规则，适用于后续轮次</label>
+    <div class="row"><button id="say-cancel">取消</button><button class="primary" id="say-send">提交批注</button></div>
+  </div>
+</dialog>
+<script type="module" src="app/app.js"></script>
+</body>
+</html>

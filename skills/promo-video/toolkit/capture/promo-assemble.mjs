@@ -15,10 +15,10 @@
 import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
-import os from 'node:os'
 
-const FFMPEG = process.env.PROMO_FFMPEG
-  ?? path.join(os.homedir(), 'promo-tools/node_modules/@ffmpeg-installer/darwin-arm64/ffmpeg')
+// The ffmpeg on PATH, or PROMO_FFMPEG. (It once defaulted to a path on the machine the film was shot on, and failed
+// elsewhere with only "ffmpeg exited null".)
+const FFMPEG = process.env.PROMO_FFMPEG ?? 'ffmpeg'
 
 const args = process.argv.slice(2)
 const actDir = args.find((a) => !a.startsWith('--'))
@@ -58,6 +58,7 @@ const ff = spawnSync(FFMPEG, [
   '-movflags', '+faststart',
   outPath,
 ], { stdio: ['ignore', 'inherit', 'inherit'] })
+if (ff.error) throw new Error(`cannot run ffmpeg (${FFMPEG}): ${ff.error.message} — put ffmpeg on PATH or set PROMO_FFMPEG`)
 if (ff.status !== 0) throw new Error(`ffmpeg exited ${ff.status}`)
 
 const durS = ((endTsMs ?? frames[frames.length - 1].tsMs) - t0) / 1000

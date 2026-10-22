@@ -1,0 +1,34 @@
+{
+  "id": "studio",
+  "name": "片场",
+  "version": "0.7.5",
+  "apiVersion": 4,
+  "engines": { "gugu": ">=0.2.55" },
+  "description": "群内协作制作视频：组长安排轮次，写手提交方案与片段，成员批注、选卡或退回修改。支持宣传稿、海报和文案；拍摄真实产品时使用 promo-video skill。",
+  "localized": {
+    "en": {
+      "name": "Studio",
+      "description": "Make videos together in a group: agents submit drafts and clips; people annotate, pick or request revisions."
+    }
+  },
+  "author": "promo-skills",
+  "repository": "https://github.com/shuxueshuxue/promo-skills",
+  "license": "MIT",
+  "entry": "studio.html",
+  "permissions": {
+    "capabilities": ["files:read:all-machines", "files:write", "chat:relay", "agents:tools"]
+  },
+  "contributes": {
+    "tabs": [
+      {
+        "name": "main",
+        "title": "片场",
+        "entry": "studio.html",
+        "opensFiles": { "chat": [".studio.json"] }
+      }
+    ],
+    "mcpServers": [{ "tools": "app/tools.js" }],
+    "toolsListed": true,
+    "skills": "skills"
+  }
+}
