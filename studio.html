@@ -11,7 +11,7 @@
 <header id="bar">
   <strong id="name"></strong>
   <textarea id="brief" rows="1" aria-label="需求" placeholder="一句话：要做什么、给谁看、多长"></textarea>
-  <button id="open-round" aria-label="开一轮"><gugu-icon name="plus"></gugu-icon></button>
+  <button id="open-round" aria-label="新建轮次"><gugu-icon name="plus"></gugu-icon></button>
   <button id="open-settings" aria-label="设置"><gugu-icon name="settings"></gugu-icon></button>
 </header>
 <!-- The lead agent and what it is doing (with pause / hand back), when the table has one. -->
@@ -33,23 +33,23 @@
   </header>
   <section class="stack">
     <h5>写手</h5>
-    <small class="muted">开一轮时默认勾上的 Agent。</small>
+    <small class="muted">新建轮次时默认选择的 Agent。</small>
     <div id="writers" class="stack"></div>
   </section>
   <section class="stack">
-    <h5>出图和配音 <small class="muted" id="img-state"></small></h5>
-    <small class="muted">写手出分镜、海报、配旁白时，调片场的出图和配音工具，用你的 OpenRouter 密钥，费用记在你的 OpenRouter 账上，也记在卡桌最上面。密钥只存在这台电脑上，不写进卡桌文件（对话里的人都看得到卡桌文件）。</small>
+    <h5>图像与配音 <small class="muted" id="img-state"></small></h5>
+    <small class="muted">图像与配音工具使用你的 OpenRouter 密钥，费用计入 OpenRouter 账单，并在项目顶部汇总。密钥仅保存在当前设备，不写入群内共享的卡桌文件。</small>
     <label>OpenRouter API 密钥 <input id="img-key" type="password" autocomplete="off" /></label>
-    <label>出图模型 <input id="img-model" /></label>
-    <label>配音的声音 <select id="voice"></select></label>
-    <div class="row"><button class="primary" id="img-save">保存并检查</button><button id="img-clear">清掉密钥</button><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">获取密钥</a></div>
+    <label>图像模型 <input id="img-model" /></label>
+    <label>配音音色 <select id="voice"></select></label>
+    <div class="row"><button class="primary" id="img-save">保存并检查</button><button id="img-clear">清除密钥</button><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">获取密钥</a></div>
     <small class="muted" id="img-where"></small>
   </section>
   <section class="stack">
     <h5>组长</h5>
-    <small class="muted">组长 agent 自己开轮时的上限。你不挑，它就不开下一轮；到了上限，它会先问你。这两项写在卡桌上，群里的人都看得到。</small>
-    <label>这张卡桌最多几轮 <input id="lim-rounds" type="number" min="1" max="50" /></label>
-    <label>每轮最多几个写手 <input id="lim-writers" type="number" min="1" max="10" /></label>
+    <small class="muted">组长在成员选卡或跳过本轮后继续，达到上限时请求确认。以下设置保存在群内共享的卡桌文件中。</small>
+    <label>项目轮次上限 <input id="lim-rounds" type="number" min="1" max="50" /></label>
+    <label>每轮写手上限 <input id="lim-writers" type="number" min="1" max="10" /></label>
   </section>
   <section class="stack">
     <h5>导演法典</h5>
@@ -59,18 +59,18 @@
 
 <dialog id="round-box">
   <form method="dialog" class="stack">
-    <strong>开一轮</strong>
+    <strong>新建轮次</strong>
     <div class="row">
-      <label>线 <select id="r-track"></select></label>
-      <label id="r-new-track-label" hidden>新的线叫 <input id="r-new-track" placeholder="比如：海报" /></label>
+      <label>制作方向 <select id="r-track"></select></label>
+      <label id="r-new-track-label" hidden>方向名称 <input id="r-new-track" placeholder="例如：海报" /></label>
     </div>
     <div class="row">
-      <label>出什么 <select id="r-kind"></select></label>
-      <label>位置 <input id="r-slot" placeholder="比如：叙事主线、第 3 拍" /></label>
-      <label>每人几张 <input id="r-each" type="number" min="1" max="5" value="2" /></label>
+      <label>内容类型 <select id="r-kind"></select></label>
+      <label>阶段名称 <input id="r-slot" placeholder="例如：叙事主线、第 3 拍" /></label>
+      <label>每人提交数量 <input id="r-each" type="number" min="1" max="5" value="2" /></label>
     </div>
-    <label>这一轮的要求 <textarea id="r-ask" rows="2" placeholder="可以空着：照需求和已选的卡来"></textarea></label>
-    <fieldset><legend>谁来出卡</legend><div id="r-agents" class="agents"></div></fieldset>
+    <label>本轮要求 <textarea id="r-ask" rows="2" placeholder="可留空，按项目需求和已选方案制作"></textarea></label>
+    <fieldset><legend>参与写手</legend><div id="r-agents" class="agents"></div></fieldset>
     <small class="muted" id="r-refs"></small>
     <div class="row"><button type="button" id="r-cancel">取消</button><button type="button" class="primary" id="r-start">开始</button></div>
   </form>
@@ -80,9 +80,9 @@
 <dialog id="say-box">
   <div class="stack">
     <strong id="say-title"></strong>
-    <textarea id="say-text" rows="4" placeholder="好在哪、哪里要改"></textarea>
-    <label id="say-reject-row"><input type="checkbox" id="say-reject" /> <strong>要作者交新版（打回）</strong></label>
-    <label><input type="checkbox" id="say-rule" /> 同时升为规矩（以后每一轮都照它）</label>
+    <textarea id="say-text" rows="4" placeholder="填写评价或修改要求"></textarea>
+    <label id="say-reject-row"><input type="checkbox" id="say-reject" /> <strong>退回修改，要求提交新版</strong></label>
+    <label><input type="checkbox" id="say-rule" /> 同时设为项目规则，适用于后续轮次</label>
     <div class="row"><button id="say-cancel">取消</button><button class="primary" id="say-send">提交批注</button></div>
   </div>
 </dialog>

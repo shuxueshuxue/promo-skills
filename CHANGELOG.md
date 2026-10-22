@@ -1,5 +1,12 @@
 # 片场 (Studio) — changes
 
+## 0.7.5
+
+- Opening a round and picking a card now notify the writers and lead through App file references (`refs`).
+  The removed `about` argument previously prevented these messages from reaching them on current gugu.
+- Requires App API 4 and gugu 0.2.55 or later, so the market offers this version only to compatible clients.
+- Shorter App description and clearer interface messages.
+
 ## 0.7.4 (2026-10-14)
 
 For gugu Beta 0.2.54-beta.77 and later (it reads files across machines and stamps a tool call's model).

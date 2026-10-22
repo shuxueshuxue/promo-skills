@@ -1,13 +1,14 @@
 {
   "id": "studio",
   "name": "片场",
-  "version": "0.7.4",
-  "apiVersion": 3,
-  "description": "片场：一件要创意的活（宣传片、宣传稿、海报、文案），让群里几个不同模型的 Agent 同时各出几张卡，群里的人批注、选卡、打回（也可以叫哪个 Agent 来看看，它用同一个批注），选中的卡进下一轮混搭，直到成片。拍真产品的片子照 promo-video skill 做。",
+  "version": "0.7.5",
+  "apiVersion": 4,
+  "engines": { "gugu": ">=0.2.55" },
+  "description": "群内协作制作视频：组长安排轮次，写手提交方案与片段，成员批注、选卡或退回修改。支持宣传稿、海报和文案；拍摄真实产品时使用 promo-video skill。",
   "localized": {
     "en": {
       "name": "Studio",
-      "description": "Studio: a creative job (a promo film, an article, a poster, copy) where several agents of different models in the group each hand in cards; people annotate, pick or send cards back, and the picks are mixed in the next round until the film is done."
+      "description": "Make videos together in a group: agents submit drafts and clips; people annotate, pick or request revisions."
     }
   },
   "author": "promo-skills",

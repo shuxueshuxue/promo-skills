@@ -35,9 +35,9 @@ if (normalizeTable(structuredClone(f.toJSON())) || f.data.brief === undefined) {
 async function tell(to, text) {
   if (!to) return
   try {
-    await window.gugu.send(to, text, { about: f.entry })
+    await window.gugu.send(to, text, { refs: [{ file: f.entry }] })
   } catch (error) {
-    say(`没叫到 ${nameOf(to)}：${error.code ?? ''} ${error.message}`, 'error')
+    say(`通知 ${nameOf(to)} 失败：${error.code ?? ''} ${error.message}`, 'error')
   }
 }
 function say(message, tone = 'info') {
@@ -62,7 +62,7 @@ async function loadMedia(itemId) {
     }
     file.close()
   } catch (error) {
-    media.set(itemId, { error: error.code === 'invalid' ? `这台咕咕还打不开图片和视频（${error.message}）` : `打不开：${error.message}` })
+    media.set(itemId, { error: `文件打开失败：${error.message}` })
   }
   draw()
 }
@@ -101,8 +101,8 @@ async function loadOriginal(cardId, video) {
     originals.set(key, { url: URL.createObjectURL(blob), changed: Boolean(sha && sha !== video.sha256) })
   } catch (error) {
     const why = error.code === 'not-found'
-      ? `找不到原片：交卡的那条会话，或它工作区里的这个文件，已经不在了（${error.message}）`
-      : `原片打不开：${error.message}`
+      ? `未找到原片：请检查提交任务的工作区和文件（${error.message}）`
+      : `原片打开失败：${error.message}`
     originals.set(key, { error: why })
   } finally {
     file?.close()
@@ -128,11 +128,11 @@ function videoView(cardId, video, open) {
   return html`${original?.url ? '' : html`<div class="pics">${mediaView(video.cover)}</div>`}
     ${open && video.strip ? html`<div class="strip">${mediaView(video.strip)}</div>` : ''}
     ${original?.url ? html`<video class="media" data-key="original:${key}" src="${original.url}" controls playsinline preload="metadata"></video>` : ''}
-    ${original?.changed ? html`<small class="muted" role="alert">原片在交卡之后改过了（和卡上记的不是同一份）。</small>` : ''}
+    ${original?.changed ? html`<small class="muted" role="alert">原片已修改，与提交时的版本不一致。</small>` : ''}
     ${original?.error ? html`<small class="muted" role="alert">${original.error}</small>` : ''}
-    <small class="muted">原片${facts ? ` ${facts}` : ''}，留在交卡的电脑上，云端只有封面和缩略条。</small>
-    ${video.check ? html`<small class="muted">交卡时体检：${checkLine(video.check)}</small>` : ''}
-    ${original?.url ? '' : html`<button class="sm" data-act="original" data-card="${cardId}" ${original === 'loading' ? 'disabled' : ''}>${original === 'loading' ? '正在取原片…' : '播放原片'}</button>`}`
+    <small class="muted">原片${facts ? ` ${facts}` : ''}，保存在提交设备上；云端保存封面和缩略条。</small>
+    ${video.check ? html`<small class="muted">提交检查：${checkLine(video.check)}</small>` : ''}
+    ${original?.url ? '' : html`<button class="sm" data-act="original" data-card="${cardId}" ${original === 'loading' ? 'disabled' : ''}>${original === 'loading' ? '正在加载原片…' : '播放原片'}</button>`}`
 }
 
 // ─── the header: the file's name, the brief (typed in together), 开一轮, settings ──────────────────────────────────
@@ -150,7 +150,7 @@ const showSettings = (on) => {
   for (const row of ['#bar', '#lead-row', '#spend']) $(row).hidden = on
   if (on) {
     drawLimits()
-    loadSettings().catch((error) => say(`设置读不出来：${error.message}`, 'error'))
+    loadSettings().catch((error) => say(`设置读取失败：${error.message}`, 'error'))
   }
 }
 $('#open-settings').onclick = () => showSettings(true)
@@ -183,19 +183,19 @@ async function loadSettings() {
     return
   }
   const hasKey = Boolean(String(settings.openrouterKey ?? '').trim())
-  $('#img-state').textContent = hasKey ? '已配置' : '还没有密钥'
-  $('#img-key').placeholder = hasKey ? '已配置（要换就粘贴新的）' : '粘贴 OpenRouter 的 API 密钥'
+  $('#img-state').textContent = hasKey ? '已配置' : '未配置密钥'
+  $('#img-key').placeholder = hasKey ? '已配置，输入新密钥以替换' : '输入 OpenRouter API 密钥'
   $('#img-model').value = settings.imageModel ?? ''
   if (hasKey) await checkImageKey()
 }
 async function checkImageKey() {
-  $('#img-state').textContent = '正在试一次…'
+  $('#img-state').textContent = '正在检查…'
   const result = await window.gugu.callProgram('check_image_key')
   if (!result) return // app_check's rehearsal runs no program
   const answer = result.structuredContent ?? JSON.parse(result.content?.[0]?.text ?? '{}')
-  if (result.isError || !answer.ok) $('#img-state').textContent = `不能用：${answer.reason ?? result.content?.[0]?.text ?? '?'}`
-  else $('#img-state').textContent = `能用 · ${answer.remaining == null ? `余额读不到` : `可用余额 $${answer.remaining.toFixed(2)}`}`
-  if (answer.settings) $('#img-where').textContent = `设置存在这台电脑上：${answer.settings}。`
+  if (result.isError || !answer.ok) $('#img-state').textContent = `检查失败：${answer.reason ?? result.content?.[0]?.text ?? '?'}`
+  else $('#img-state').textContent = `可用 · ${answer.remaining == null ? `余额暂不可用` : `可用余额 $${answer.remaining.toFixed(2)}`}`
+  if (answer.settings) $('#img-where').textContent = '设置仅保存在当前设备。'
 }
 $('#img-save').onclick = async () => {
   const key = $('#img-key').value.trim()
@@ -211,7 +211,7 @@ $('#img-save').onclick = async () => {
     $('#img-key').value = ''
     await loadSettings()
   } catch (error) {
-    say(`没存上：${error.message}`, 'error')
+    say(`保存失败：${error.message}`, 'error')
   }
 }
 $('#voice').onchange = async () => {
@@ -219,7 +219,7 @@ $('#voice').onchange = async () => {
   try {
     await saveSettings((s) => ({ ...s, voice }))
   } catch (error) {
-    say(`没存上：${error.message}`, 'error')
+    say(`保存失败：${error.message}`, 'error')
   }
 }
 $('#img-clear').onclick = async () => {
@@ -231,7 +231,7 @@ $('#img-clear').onclick = async () => {
     })
     await loadSettings()
   } catch (error) {
-    say(`没清掉：${error.message}`, 'error')
+    say(`清除失败：${error.message}`, 'error')
   }
 }
 function drawWriters() {
@@ -239,7 +239,7 @@ function drawWriters() {
   const list = agents()
   render($('#writers'), list.length
     ? html`${list.map((a) => html`<label data-key="${a.id}"><input type="checkbox" data-writer="${a.id}" ${ticked.has(a.id) ? html`checked` : ''} /> <gugu-avatar user="${a.id}" size="xs"></gugu-avatar> ${a.name}</label>`)}`
-    : html`<small class="muted">这个对话里还没有 Agent。</small>`)
+    : html`<small class="muted">当前群聊暂无 Agent。</small>`)
 }
 $('#writers').addEventListener('change', async (event) => {
   const id = event.target.dataset?.writer
@@ -252,10 +252,10 @@ $('#writers').addEventListener('change', async (event) => {
       return { ...s, writers: [...writers] }
     })
   } catch (error) {
-    say(`没存上：${error.message}`, 'error')
+    say(`保存失败：${error.message}`, 'error')
   }
 })
-readSettings().catch((error) => say(`设置读不出来：${error.message}`, 'error'))
+readSettings().catch((error) => say(`设置读取失败：${error.message}`, 'error'))
 
 // ─── 开一轮: a dialog; the line is chosen here (a new one can be started) ──────────────────────────────────────────
 $('#r-kind').innerHTML = KINDS.map((k) => `<option>${k}</option>`).join('')
@@ -269,7 +269,7 @@ function drawRoundForm() {
   const list = agents()
   render($('#r-agents'), list.length
     ? html`${list.map((a) => html`<label data-key="${a.id}"><input type="checkbox" data-agent="${a.id}" ${chosenAgents.has(a.id) ? html`checked` : ''} /> <gugu-avatar user="${a.id}" size="xs"></gugu-avatar> ${a.name}</label>`)}`
-    : html`<small class="muted">这个对话里还没有 Agent：先把几个不同模型的 Agent 拉进来。</small>`)
+    : html`<small class="muted">请先向群聊添加使用不同模型的 Agent。</small>`)
   const picked = pickedCards()
   $('#r-refs').textContent = picked.length ? `参考（已选的卡）：${picked.map(([, c]) => c.title).join('、')}` : ''
 }
@@ -307,7 +307,7 @@ $('#r-start').onclick = async () => {
   $('#r-ask').value = ''
   $('#r-slot').value = ''
   $('#round-box').close()
-  say(`第 ${n} 轮开始了：叫了 ${chosen.map(nameOf).join('、')}`)
+  say(`第 ${n} 轮已开始，已通知 ${chosen.map(nameOf).join('、')}`)
   for (const agent of chosen) await tell(agent, roundCall({ n, slot, kind, each }))
 }
 
@@ -444,12 +444,12 @@ function leadView(data) {
   if (!data.lead) return ''
   const waiting = waitingRound(data)
   const status = data.paused
-    ? '已暂停，你在接管：组长不会开新的一轮'
+    ? '已暂停，由你接管'
     : waiting
-      ? `在等你挑第 ${waiting.n} 轮「${waiting.slot}」（也可以跳过这一轮）`
+      ? `等待选择第 ${waiting.n} 轮「${waiting.slot}」的方案，可跳过本轮`
       : data.plan?.length
-        ? `下一轮会开「${data.plan[0].slot}」`
-        : '计划都走完了'
+        ? `下一轮：${data.plan[0].slot}`
+        : '计划已完成'
   return html`<gugu-avatar user="${data.lead}" size="xs"></gugu-avatar>
     <span>${leadLabel(nameOf(data.lead))}：${status}</span>
     <button class="sm" data-act="lead">${data.paused ? '交还组长' : '暂停组长'}</button>`
@@ -463,8 +463,8 @@ function historyView(data, cardId) {
     return html`<li data-key="${cardId}:${i}"><i class="mark ${MARK[e.kind] ?? 'n'}"></i><div>
       <span><strong>${who}</strong> ${what}</span> <gugu-time datetime="${e.at}"></gugu-time>
       ${e.comment ? html`<p>${e.comment}</p>` : ''}
-      ${e.kind === 'version' && e.lost ? html`<p class="muted">这一版的正文没留下：0.3.0 以前，交新版会直接盖掉旧版。</p>` : ''}
-      ${e.kind === 'version' && !e.lost && e.version < (data.cards[cardId].version ?? 1) ? html`<details><summary>这一版写的</summary><p class="kept">${e.saved?.title ?? ''}${'\n'}${withBreaks(e.saved?.text)}</p></details>` : ''}
+      ${e.kind === 'version' && e.lost ? html`<p class="muted">此版本正文未保留：0.3.0 以前提交新版会覆盖旧版。</p>` : ''}
+      ${e.kind === 'version' && !e.lost && e.version < (data.cards[cardId].version ?? 1) ? html`<details><summary>版本内容</summary><p class="kept">${e.saved?.title ?? ''}${'\n'}${withBreaks(e.saved?.text)}</p></details>` : ''}
     </div></li>`
   })}</ol>`
 }
@@ -492,17 +492,17 @@ function cardView(data, id, card, pick) {
 
 function stageView(data) {
   const round = data.rounds[openRound]
-  if (!round) return html`<gugu-empty icon="checklist"><strong>还没有卡</strong><small>写好需求，开第一轮</small><button class="primary" data-act="first-round">开一轮</button></gugu-empty>`
+  if (!round) return html`<gugu-empty icon="checklist"><strong>暂无方案</strong><small>填写需求后创建第一轮</small><button class="primary" data-act="first-round">新建轮次</button></gugu-empty>`
   const pick = pickOfRound(data, openRound)
   const cards = Object.entries(data.cards).filter(([, c]) => c.round === openRound)
     .sort(([a, x], [b, y]) => (b === pick) - (a === pick) || (x.at ?? '').localeCompare(y.at ?? ''))
   // Who opened it: with a lead at the table, the rounds it opened and the ones the person did are told apart.
-  const opener = data.lead ? (round.by === data.lead ? '组长开的' : round.by === me ? '你开的' : `${nameOf(round.by)} 开的`) : ''
+  const opener = data.lead ? (round.by === data.lead ? '组长创建' : round.by === me ? '你创建' : `${nameOf(round.by)} 创建`) : ''
   const canSkip = data.lead && !pick && !round.skipped
   return html`<header class="stage-head" data-key="head:${openRound}">
       <h2>${round.slot}</h2>
       <span class="writers">${(round.agents ?? []).map((a) => html`<gugu-avatar user="${a}" size="xs"></gugu-avatar>`)}</span>
-      ${opener ? html`<small class="muted">${opener}${round.skipped ? ' · 跳过了' : ''}</small>` : ''}
+      ${opener ? html`<small class="muted">${opener}${round.skipped ? ' · 已跳过' : ''}</small>` : ''}
       ${canSkip ? html`<button class="sm" data-act="skip" data-round="${openRound}">跳过这一轮</button>` : ''}
     </header>
     ${round.ask ? html`<p class="muted ask ${askOpen ? 'open' : ''}" data-act="ask">${round.ask}</p>` : ''}
@@ -514,7 +514,7 @@ function spendLine(data) {
   const { total, byTool, unknown } = spendOf(data)
   if (!total && !unknown) return ''
   const parts = [['voice', '配音'], ['image', '出图']].filter(([tool]) => byTool[tool]).map(([tool, name]) => `${name} ${money(byTool[tool])}`)
-  return `已花 ${money(total) || '$0'}${parts.length ? `（${parts.join(' · ')}）` : ''}${unknown ? `，另有 ${unknown} 笔还没出账` : ''}`
+  return `已用 ${money(total) || '$0'}${parts.length ? `（${parts.join(' · ')}）` : ''}${unknown ? `，另有 ${unknown} 笔待结算` : ''}`
 }
 
 function draw() {
@@ -525,7 +525,7 @@ function draw() {
   $('#spend').textContent = spendLine(data)
   render($('#lead-row'), leadView(data))
   const rules = Object.values(data.rules).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
-  render($('#rules'), html`<small class="muted">底子是 promo-video skill 里 director-rulings.md 的 23 条；下面是在这张卡桌上被打回后升上来的${rules.length ? '' : '（还没有）'}。</small>
+  render($('#rules'), html`<small class="muted">基础规则见 promo-video skill 的 director-rulings.md，共 23 条。以下为本项目新增规则${rules.length ? '' : '（暂无）'}。</small>
     <ol start="24">${rules.map((r) => html`<li data-key="${r.from}">${r.text}</li>`)}</ol>`)
   // The open stage in view on the spine (a strip in a narrow panel scrolls), once each time it changes.
   if (openRound !== shownRound) {
@@ -555,4 +555,4 @@ window.gugu.onContextChanged((next) => {
 })
 rememberNames()
 draw()
-window.gugu.setTabTitle?.('片场')?.catch?.((error) => say(`标题没改成：${error.message}`, 'error'))
+window.gugu.setTabTitle?.('片场')?.catch?.((error) => say(`标题更新失败：${error.message}`, 'error'))

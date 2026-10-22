@@ -28,7 +28,10 @@ function chat({ failSendTo = [] } = {}) {
     },
     send: async (to, text, where) => {
       if (failSendTo.includes(to)) throw Object.assign(new Error('not in this chat'), { code: 'invalid' })
-      state.sent.push({ to, text, about: where?.about?.id })
+      if (where?.about != null) throw Object.assign(new Error('about is gone: name the file in refs'), { code: 'invalid' })
+      const file = where?.refs?.[0]?.file
+      assert.equal(file?.chat, 'chat-1')
+      state.sent.push({ to, text, file: file?.id })
     },
   }
   return state
@@ -52,7 +55,7 @@ test('the first call makes the table in the chat with the caller as its lead, op
   assert.deepEqual([answer.board, answer.n, answer.told], ['item-table', 1, [A, B]])
   const round = state.data.rounds[answer.round]
   assert.deepEqual([round.kind, round.slot, round.track, round.by, round.each, round.refs], ['叙事', '叙事主线', '片子', LEAD, 1, []])
-  assert.deepEqual(state.sent.map((s) => [s.to, s.about]), [[A, 'item-table'], [B, 'item-table']])
+  assert.deepEqual(state.sent.map((s) => [s.to, s.file]), [[A, 'item-table'], [B, 'item-table']])
   assert.equal(state.sent[0].text, roundCall({ n: 1, slot: '叙事主线', kind: '叙事', each: 1 }))
   assert.deepEqual(state.data.plan.map((s) => s.slot), ['分镜', '挑声音', '整片'])
 })

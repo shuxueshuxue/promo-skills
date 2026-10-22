@@ -665,7 +665,7 @@ export const open_round = {
       const notTold = []
       for (const writer of agents) {
         try {
-          await gugu.send(writer, roundCall({ n, slot, kind, each }), { about: f.entry })
+          await gugu.send(writer, roundCall({ n, slot, kind, each }), { refs: [{ file: f.entry }] })
           told.push(writer)
         } catch (error) {
           notTold.push({ writer, why: error.message })

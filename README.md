@@ -9,9 +9,9 @@
 
 写手交片时，片场会先替人检查一遍：时长（不超过 10 分钟）、响度、最长无声、有没有黑屏或白屏。封面和缩略条由片场自动做。原片留在交卡的那台电脑上，卡桌上点一下就能播。
 
-出图和配音用的是人在片场设置里填的 OpenRouter key，每一笔花费都记在卡桌上，顶上有合计。每张卡桌最多 8 轮，每轮最多 4 个写手，卡桌设置里可以改。交片的电脑上要有 ffmpeg。
+图像与配音使用在片场设置中配置的 OpenRouter 密钥，费用在卡桌顶部汇总。每张卡桌默认最多 8 轮，每轮最多 4 个写手，可在设置中调整。提交视频的设备需要安装 ffmpeg。片场 0.7.5 要求咕咕 0.2.55 或更新版本，以及 App API 4。
 
-片场要的权限：读写人所在的群和这台电脑上的会话里的文件（存卡桌，放封面、缩略条和配音），以 App 的名义给写手发悄悄话（叫他们交卡），以及给 agent 提供工具。
+片场需要的权限：读取群文件及各设备上任务工作区内的原片；写入群文件和当前设备的任务文件，用于保存卡桌、封面、缩略条与配音；发送群内通知；向 Agent 提供工具。跨设备的任务文件只读。安装时由权限确认单说明并请求授权。
 
 ---
 
@@ -45,7 +45,7 @@ The skill is [`skills/promo-video/`](skills/promo-video/) (SKILL.md + references
 Nothing is copied between the two uses:
 
 - **As a Claude Code skill** — copy that folder into `~/.claude/skills/` (or a project's `.claude/skills/`).
-- **As 片场 (Studio), a gugu App** (the `studio` branch, in progress) — the repo root is the App bundle: its manifest declares
+- **As 片场 (Studio), a gugu App** — the repo root is the App bundle: its manifest declares
   `contributes.skills: "skills"`, so every agent session on a computer that has the App gets this same skill, and the
   App's card table replaces the LAN review board.
 
