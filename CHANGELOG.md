@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.7.6
+
+- Add the Studio clapperboard icon and screenshots of the installed App to the market page.
+
 ## 0.7.5
 
 - Opening a round and picking a card now notify the writers and lead through App file references (`refs`).
