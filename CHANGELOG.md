@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.7.7
+
+- Report the opened file name through the host title API and remove the repeated file heading. Settings Back stays inside the same tab.
+
 ## 0.7.6
 
 - Add the Studio clapperboard icon and screenshots of the installed App to the market page.

@@ -4,9 +4,8 @@ body { margin: 0; }
 #status:empty { display: none; }
 #status { padding: var(--em-spacing-xs) var(--em-spacing-lg); }
 
-/* header: name, brief, 开一轮, settings */
+/* header: brief, 开一轮, settings */
 #bar { display: flex; align-items: center; gap: var(--em-spacing-sm); padding: var(--em-spacing-sm) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
-#bar #name { white-space: nowrap; }
 #lead-row { display: flex; align-items: center; gap: var(--em-spacing-sm); flex-wrap: wrap; padding: var(--em-spacing-xs) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
 #lead-row:empty, #lead-row[hidden], #spend[hidden] { display: none; }
 #lead-row span { flex: 1; min-width: 0; }
