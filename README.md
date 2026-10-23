@@ -18,6 +18,8 @@
 
 ---
 
+卡桌保存在来源群或私聊的文件夹；从话题打开时使用来源的共享槽和成员名册。话题不会自动获得另一张卡桌：继续制作时传已有 `board` 文件 id，需要另一项目时才新建。图片、封面、缩略条和提交的音频跟着卡桌文件的 `entry.chat`；原始片段仍按卡桌记录从制作设备读取。`settings.json`（密钥、默认写手和模型设置）继续仅保存在当前设备的 App 数据目录。
+
 ## promo-video：拍真产品的宣传片 skill
 
 **A Claude Code / agent skill for making a real product launch video — by filming the

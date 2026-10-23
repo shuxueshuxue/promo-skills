@@ -9,14 +9,14 @@ const LEAD = 'user:lead'
 const [A, B, C, D, E] = ['user:a', 'user:b', 'user:c', 'user:d', 'user:e']
 
 /** The chat as the program sees it: one table file it creates and opens, and the whispers it sends. */
-function chat({ failSendTo = [] } = {}) {
+function chat({ failSendTo = [], createdChat } = {}) {
   const state = { data: null, created: [], sent: [], opened: [] }
   globalThis.gugu = {
     files: {
       create: async (target, content) => {
         state.created.push(target)
         state.data = structuredClone(content)
-        return { id: 'item-table', chat: target.chat, name: target.name }
+        return { id: 'item-table', chat: createdChat ?? target.chat, name: target.name }
       },
       open: async (ref) => {
         state.opened.push(ref)
@@ -213,4 +213,19 @@ test('rounds are numbered in the order they are put on the table, whoever opens 
   data.feedback.f1 = { card: 'c1', verdict: 'pick', ts: 't' }
   assert.deepEqual(picksSoFar(data), ['c1'])
   assert.deepEqual(waitingRound(data), { id: 'r2', n: 2, slot: '分镜' })
+})
+
+
+test('a first call from a topic opens the returned source entry and keeps that board for later rounds', async () => {
+  const state = chat({ createdChat: 'chat-1' })
+  const one = await open_round.run({ ...first, chat: 'topic-1' }, { agent: LEAD })
+  assert.deepEqual(state.created, [{ chat: 'topic-1', name: '咕咕 30 秒.studio.json' }])
+  assert.deepEqual(state.opened, [{ chat: 'chat-1', id: 'item-table' }])
+  assert.equal(one.board, 'item-table')
+  hand(state, 'source-story', one.round)
+  pick(state, 'source-story')
+  await open_round.run({ board: one.board, round: { kind: '分镜', slot: '继续', agents: [A] } }, { agent: LEAD })
+  assert.equal(state.created.length, 1)
+  assert.deepEqual(state.opened.at(-1), { id: 'item-table' })
+  assert.ok(state.sent.every(s => s.file === 'item-table'))
 })

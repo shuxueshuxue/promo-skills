@@ -14,7 +14,8 @@ import { IMAGE_MODEL, SETTINGS_FILE, VOICES, parseSettings } from './settings.js
 
 const ctx = await window.gugu.getContext()
 const md = await window.gugu.markdown()
-const chatId = f.entry.chat ?? ctx.chat?.id
+// The host opens a topic's table in its source's shared slot. Files name their source; that slot supplies its roster.
+const chatId = f.entry.chat
 let members = ctx.chat?.members ?? []
 const now = () => new Date().toISOString()
 const newId = (prefix) => `${prefix}${crypto.randomUUID().slice(0, 8)}`
