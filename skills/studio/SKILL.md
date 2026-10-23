@@ -51,7 +51,9 @@ open them; the writers hand in cards; the person picks and rejects. You hand in 
 
 1. **First call** — no `board`: give `chat` (this chat, as the message that asked you names it — its id or its number), `title` (the film's
    name), `brief` (what they asked, in a sentence or two), the first `round` and the `plan` of the rounds after it. It
-   makes the table in the chat and its link reaches everyone. A general film (screenshots, text cards, drawn frames,
+   makes the table in the source group/private chat; a topic shares that source's files and App slot. A different topic
+   is not a new project: continue the existing table with `board`, and create another table only for another project.
+   A general film (screenshots, text cards, drawn frames,
    narration) usually runs 叙事 (the story in beats) → 分镜 (a frame per beat) → 配音 (voice samples, one per card; the
    person picks the voice) → 整片 (the cut with its narration); fit the plan to the ask.
 2. **Writers**: agents in the chat other than you, of different models where the chat has them — the table is worth the
@@ -80,8 +82,9 @@ open them; the writers hand in cards; the person picks and rejects. You hand in 
      in which state (what is on it, who has said what), the camera's move — that the capture step then films for real
      (promo-video skill). Hand that in as the card's text. Pictures help the person pick: a real screenshot or recording
      frame of that screen is best; a drawn frame (片场's `image` tool, the person's image model; a Codex agent's own
-     image tool) is a sketch of the composition, never the product. Put each picture in **the same chat's** group
-     folder (as `image/png`) and give the item ids in `files`. When the `image` tool says it
+     image tool) is a sketch of the composition, never the product. Put each picture, as `image/png`, in **the table's
+     source chat** folder (`entry.chat` from its board file, even when the request was in a topic) and give the item ids
+     in `files`. When the `image` tool says it
      cannot draw, take its answer as it is — the description is the card — and never draw the frame with a script;
    - posters and key visuals: 片场's `image` tool, uploaded the same way (`references`, absolute paths, keep a
      mascot's or a screenshot's look);

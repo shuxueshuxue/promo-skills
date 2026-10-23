@@ -591,7 +591,7 @@ const ROUND = {
 
 export const open_round = {
   description:
-    'Lead a Studio (片场) table: when the person asks the group for a film, plan its rounds and open them one at a time. The first call makes the table in this chat (give chat, title and brief, no board) and makes you its lead; every call opens one round — its writers are woken with what it asks — and may rewrite the plan of the rounds after it. A round opens only when every earlier one has a pick or was skipped: the person picks, and you are woken when they do. A table has at most 8 rounds and a round at most 4 writers unless the person set otherwise; while the person has taken the table over, nothing opens.',
+    'Lead a Studio (片场) table: when the person asks the group for a film, plan its rounds and open them one at a time. The first call makes a table in the source group or private chat (give chat, title and brief, no board); a topic uses that same source. The first call makes you its lead; continue an existing table with board. Every call opens one round — its writers are woken with what it asks — and may rewrite the plan of the rounds after it. A round opens only when every earlier one has a pick or was skipped: the person picks, and you are woken when they do. A table has at most 8 rounds and a round at most 4 writers unless the person set otherwise; while the person has taken the table over, nothing opens.',
   inputSchema: {
     type: 'object',
     required: ['round'],
@@ -599,7 +599,7 @@ export const open_round = {
       board: { ...BOARD, description: 'The table you lead. Leave it out on the first call: that call makes it.' },
       // gugu-chat: gugu hands the program the chat as the caller's own — its id, also when named by its number — and
       // refuses one the caller is not in (review r3: a plain string reached files.create as the person's, any chat).
-      chat: { type: 'string', format: 'gugu-chat', description: 'First call only: this group (the chat of the message that asked you) — its id or its number.' },
+      chat: { type: 'string', format: 'gugu-chat', description: 'First call only: the chat of the message that asked you, by id or number. Gugu resolves a topic to its source group or private chat. To continue a table, pass board instead of creating one for another topic.' },
       title: { type: 'string', description: 'First call only: the film\'s name — the table is named after it.' },
       brief: { type: 'string', description: 'First call only: what the person asked for, in a sentence or two.' },
       round: ROUND,
@@ -639,8 +639,8 @@ export const open_round = {
       fits(limitsOf({}))
       const entry = await gugu.files.create({ chat, name: `${title.replace(/[\/:*?"<>|]/g, ' ').trim()}.studio.json` }, { brief: { $text: brief }, lead: agent, plan: [], rounds: {}, cards: {}, feedback: {}, rules: {}, names: {}, spend: {} })
       board = entry.id
-      // Opened in the chat it was made in, as the lead (a bare id would open it as the person — review r4).
-      opening = { chat: entry.chat ?? chat, id: entry.id }
+      // The returned entry names the source container, including when chat was a topic; keep the SDK actor check.
+      opening = { chat: entry.chat, id: entry.id }
     }
     const f = await openBoard(opening)
     try {
