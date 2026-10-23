@@ -1,7 +1,7 @@
 {
   "id": "studio",
   "name": "片场",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "icon": "icon.png",
   "apiVersion": 4,
   "engines": { "gugu": ">=0.2.55" },

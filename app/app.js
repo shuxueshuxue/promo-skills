@@ -135,8 +135,7 @@ function videoView(cardId, video, open) {
     ${original?.url ? '' : html`<button class="sm" data-act="original" data-card="${cardId}" ${original === 'loading' ? 'disabled' : ''}>${original === 'loading' ? '正在加载原片…' : '播放原片'}</button>`}`
 }
 
-// ─── the header: the file's name, the brief (typed in together), 开一轮, settings ──────────────────────────────────
-$('#name').textContent = String(f.entry.name ?? '片场').replace(/\.studio\.json$/, '')
+// ─── the header: the brief (typed in together), 开一轮, settings ──────────────────────────────────
 try {
   window.gugu.bind.text($('#brief'), f.textAt(['brief']))
 } catch {
@@ -555,4 +554,4 @@ window.gugu.onContextChanged((next) => {
 })
 rememberNames()
 draw()
-window.gugu.setTabTitle?.('片场')?.catch?.((error) => say(`标题更新失败：${error.message}`, 'error'))
+window.gugu.setTabTitle?.(String(f.entry.name ?? '片场').replace(/\.studio\.json$/, ''))?.catch?.((error) => say(`标题更新失败：${error.message}`, 'error'))
