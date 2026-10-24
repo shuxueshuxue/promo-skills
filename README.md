@@ -1,3 +1,5 @@
+![片场：比较创作方案批注与选择](screenshots/promo.png)
+
 # 片场 · Studio
 
 ![在卡桌中比较不同讲法，查看方案与批注](screenshots/card-table.jpg)

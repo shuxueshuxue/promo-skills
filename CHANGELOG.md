@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.7.8
+
+- Add promotional artwork as the first market image; preserve the existing screenshots.
+
 ## 0.7.7
 
 - Report the opened file name through the host title API and remove the repeated file heading. Settings Back stays inside the same tab.
