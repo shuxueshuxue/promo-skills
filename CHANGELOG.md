@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.7.9
+
+- Declare desktop and phone support for the human interface (App API 11).
+
 ## 0.7.8
 
 - Add promotional artwork as the first market image; preserve the existing screenshots.

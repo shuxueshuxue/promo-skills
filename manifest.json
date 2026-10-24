@@ -1,9 +1,13 @@
 {
   "id": "studio",
   "name": "片场",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "icon": "icon.png",
-  "apiVersion": 4,
+  "apiVersion": 11,
+  "platforms": [
+    "desktop",
+    "phone"
+  ],
   "engines": { "gugu": ">=0.2.55" },
   "description": "群内协作制作视频：组长安排轮次，写手提交方案与片段，成员批注、选卡或退回修改。支持宣传稿、海报和文案；拍摄真实产品时使用 promo-video skill。",
   "localized": {
