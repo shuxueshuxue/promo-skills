@@ -3,7 +3,7 @@
   "name": "片场",
   "version": "0.7.9",
   "icon": "icon.png",
-  "apiVersion": 11,
+  "apiVersion": 12,
   "platforms": [
     "desktop",
     "phone"
