@@ -4,7 +4,7 @@
 //   brief     what the table is for ({"$text": …}: typed in together)
 //   rounds    { [id]: { n, track, kind, slot, ask, each, agents: [user:…], refs: [cardId], by, at } }
 //             track: the line the round is a step of (「片子」「文字」…), chosen when the round is opened
-//   cards     { [id]: { round, slot, kind, by, model, title, text, files: [itemId], parents: [cardId], version, at, updatedAt,
+//   cards     { [id]: { round, slot, kind, by, model, modelLabel?, title, text, files: [itemId], parents: [cardId], version, at, updatedAt,
 //                       cost: { usd, seconds, tokens }, versions: { [n]: { title, text, files, model, cost, at } } } }
 //             versions: the earlier versions a new one replaced (the current one is the card itself); absent on a card
 //             that was never revised from 0.3.0 on

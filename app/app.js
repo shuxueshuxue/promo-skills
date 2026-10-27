@@ -487,7 +487,7 @@ function cardView(data, id, card, pick, place, count) {
     ${card.text ? html`<div class="text ${opened.has(id) ? 'open' : ''}" data-md="${id}"></div>` : ''}
     ${(card.text && card.text.length > 160) || files.length > 1 || card.video?.strip ? html`<button class="sm open-more" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
     ${rejected?.comment ? html`<blockquote class="verdict">${rejected.comment}<small>${nameOf(rejected.who)} · <gugu-time datetime="${rejected.at}"></gugu-time></small></blockquote>` : ''}
-    <small class="card-meta muted"><gugu-avatar user="${card.by}" size="xs"></gugu-avatar> ${nameOf(card.by)}${card.model ? ` · ${card.model}` : ''}${cost ? ` · ${cost}` : ''}</small>
+    <small class="card-meta muted"><gugu-avatar user="${card.by}" size="xs"></gugu-avatar> ${nameOf(card.by)}${card.model ? ` · ${card.modelLabel ?? card.model}` : ''}${cost ? ` · ${cost}` : ''}</small>
     ${histories.has(id) ? historyView(data, id) : ''}
     <footer class="card-foot">
       <button class="marks-btn" data-act="history" data-card="${id}" aria-expanded="${histories.has(id)}"><small class="muted">经过：${marksWords(events, isPicked)}</small>${marks(events)}</button>
