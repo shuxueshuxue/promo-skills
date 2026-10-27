@@ -200,6 +200,7 @@ const cardLine = (data, id, card) => ({
   title: card.title,
   by: card.by,
   model: card.model ?? null,
+  modelLabel: card.modelLabel ?? null,
   version: card.version ?? 1,
   // The earlier versions kept, by number (a new version keeps the one it replaces).
   earlierVersions: Object.keys(card.versions ?? {}).map(Number).sort((a, b) => a - b),
@@ -289,7 +290,7 @@ export const submit = {
       },
     },
   },
-  async run(args, { agent, session, workspaceRoot, model }) {
+  async run(args, { agent, session, workspaceRoot, model, modelLabel }) {
     if (!agent) throw new Error('submit is for agents (gugu stamps who calls)')
     // Read before the table is opened: a clip that is not there, or that nobody can hear, is said before anything is written.
     const clip = args.video ? await originalOf(args.video, { session, workspaceRoot }) : null
@@ -323,7 +324,9 @@ export const submit = {
         text,
         files,
         // The model gugu runs the caller's session on, stamped on the call — not the agent's word; none stamped, none shown.
+        // Its name in gugu's model menu comes stamped beside it (gugu 0.2.58+); an engine's own model has none.
         model: model ?? null,
+        ...(modelLabel ? { modelLabel } : {}),
         cost: { usd: Number(args.cost?.usd) || 0, seconds: Number(args.cost?.seconds) || 0, tokens: Number(args.cost?.tokens) || 0 },
         ...((video ?? prev.video) ? { video: video ?? plainVideo(prev.video) } : {}),
       }

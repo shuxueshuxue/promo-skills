@@ -136,6 +136,11 @@ test("a card's model is the one gugu stamps on the call, never the agent's word;
   await submit.run({ board: 'table', round: 'r1', card: first.card, text: 'b', model: 'what it says it is' }, call)
   assert.equal(data.cards[first.card].model, null)
   assert.equal(data.cards[first.card].versions[1].model, 'platform:glm-5.3-flash')
+  // The menu name gugu stamps beside the id is kept with it; a version stamped without one keeps none.
+  const named = await submit.run({ board: 'table', round: 'r1', title: 'n', text: 'c' }, { ...call, model: 'platform:glm-5.3-flash', modelLabel: 'GLM 5.3 Flash' })
+  assert.equal(data.cards[named.card].modelLabel, 'GLM 5.3 Flash')
+  await submit.run({ board: 'table', round: 'r1', card: named.card, text: 'd' }, { ...call, model: 'gpt-6.1-sol' })
+  assert.equal(data.cards[named.card].modelLabel, undefined)
 })
 
 test('every export of tools.js is a tool — gugu serves each one, and anything else keeps the program from starting', async () => {

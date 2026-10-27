@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.7.11
+
+- A card shows its model by the name in gugu's model menu (stamped on the call by gugu 0.2.58+ as `gugu/modelLabel`), falling back to the model's id.
+
 ## 0.7.10
 
 - The card table is laid out as a review table: the brief is the table's headline with the lead's state beside it; a band above the cards says what the round waits for (待你选 · N 张方案, 已选定, 等写手交卡); a card's text is its largest part, with who wrote it and the model a line lower; a picked card is outlined with 已选 and the others step back; a card sent back says 已打回 · 等新版 with the person's note; the spine strings the stages on one line, a stage waiting for a pick lit with its number.
