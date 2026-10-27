@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.7.10
+
+- Review card table: a card says its state in a badge (version, 已选, 已打回); a stage waiting for a pick shows its round number; the open stage is labelled with its round and line; the brief reads as the table's headline and no longer leaves an empty band under it.
+
 ## 0.7.9
 
 - Declare desktop and phone support for the human interface (App API 12).

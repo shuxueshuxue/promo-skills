@@ -5,13 +5,14 @@ body { margin: 0; }
 #status { padding: var(--em-spacing-xs) var(--em-spacing-lg); }
 
 /* header: brief, 开一轮, settings */
-#bar { display: flex; align-items: center; gap: var(--em-spacing-sm); padding: var(--em-spacing-sm) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
-#lead-row { display: flex; align-items: center; gap: var(--em-spacing-sm); flex-wrap: wrap; padding: var(--em-spacing-xs) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
+#bar { display: flex; align-items: flex-start; gap: var(--em-spacing-sm); padding: var(--em-spacing-sm) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
+#lead-row { display: flex; align-items: center; gap: var(--em-spacing-sm); flex-wrap: wrap; margin: var(--em-spacing-sm) var(--em-spacing-lg); padding: var(--em-spacing-xs) var(--em-spacing-sm) var(--em-spacing-xs) var(--em-spacing-md); border-radius: var(--em-radius-xl); background: var(--em-background-3); }
 #lead-row:empty, #lead-row[hidden], #spend[hidden] { display: none; }
 #lead-row span { flex: 1; min-width: 0; }
 #spend { display: block; padding: var(--em-spacing-xs) var(--em-spacing-lg); border-bottom: 1px solid var(--em-border); }
 #spend:empty { display: none; }
-#brief { flex: 1; min-width: 0; resize: none; border-color: transparent; background: none; color: var(--em-foreground-muted); field-sizing: content; max-height: 6lh; }
+#brief { flex: 1; min-width: 0; resize: none; border-color: transparent; background: none; color: var(--em-foreground); font-size: var(--em-font-title); line-height: var(--em-lh-title); field-sizing: content; min-height: 0; max-height: 6lh; }
+#brief:hover { border-color: var(--em-border); }
 #brief:focus { border-color: var(--em-border-1); color: var(--em-foreground); }
 
 /* the project: spine | stage */
@@ -26,7 +27,9 @@ body { margin: 0; }
 .dot .dot-media { width: 100%; height: 100%; object-fit: cover; display: block; border: 2px solid var(--em-accent-9); border-radius: 50%; box-sizing: border-box; }
 .dot.chosen { background: var(--em-accent-9); }
 .dot.chosen::after { content: ''; width: 6px; height: 11px; border: solid var(--em-accent-contrast); border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
-.dot.empty { border: 2px dashed var(--em-border-1); }
+/* a stage waiting for a pick: its number in a ring, the open one inked */
+.dot.empty { border: 2px solid var(--em-border-1); color: var(--em-foreground-muted); font-size: var(--em-font-caption); font-variant-numeric: tabular-nums; }
+.node[aria-current="step"] .dot.empty { border-color: var(--em-foreground); color: var(--em-foreground); }
 /* A round the lead plans but has not opened: dashed and quiet, not a button. */
 .node.planned { opacity: 0.55; cursor: default; }
 .node.planned:hover { background: none; }
@@ -41,11 +44,17 @@ body { margin: 0; }
 #stage { padding: var(--em-spacing-lg) var(--em-spacing-xl); min-width: 0; }
 .stage-head { display: flex; align-items: center; gap: var(--em-spacing-md); flex-wrap: wrap; }
 .stage-head h2 { margin: 0; }
+.stage-n { margin: 0 0 var(--em-spacing-xs); color: var(--em-foreground-muted); }
 .writers { display: flex; gap: 2px; }
 .ask { margin: var(--em-spacing-xs) 0 var(--em-spacing-lg); max-width: 70ch; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
 .ask.open { display: block; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--em-spacing-md); align-items: start; }
 .studio-card { display: flex; flex-direction: column; gap: var(--em-spacing-sm); }
+.card-title { display: flex; align-items: flex-start; gap: var(--em-spacing-sm); justify-content: space-between; }
+.badges { display: flex; gap: var(--em-spacing-xs); flex: none; }
+.badge { padding: 0 6px; border-radius: 999px; background: var(--em-background-3); color: var(--em-foreground-muted); font-variant-numeric: tabular-nums; }
+.badge.picked { background: var(--em-accent-9); color: var(--em-accent-contrast); }
+.badge.rejected { background: var(--em-background-destructive); color: var(--em-foreground-destructive); }
 .studio-card.picked { box-shadow: inset 0 0 0 2px var(--em-accent-9); }
 .pics { position: relative; display: grid; gap: var(--em-spacing-xs); }
 .pics .more { position: absolute; right: 6px; bottom: 6px; padding: 0 6px; border-radius: 4px; background: var(--em-background-1); }

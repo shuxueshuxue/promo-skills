@@ -410,7 +410,7 @@ function spineView(data) {
     const card = pick ? data.cards[pick] : null
     const dot = card
       ? (coverOf(card) ? html`<span class="dot">${mediaView(coverOf(card), 'dot-media')}</span>` : html`<span class="dot chosen"></span>`)
-      : html`<span class="dot empty"></span>`
+      : html`<span class="dot empty" aria-hidden="true">${round.n}</span>`
     const cards = Object.entries(data.cards).filter(([, c]) => c.round === id)
     return html`<button class="node ${round.track === trunk ? '' : 'branch'} ${lineStart ? 'line-start' : ''}" data-line="${round.track}" data-key="${id}" data-act="stage" data-round="${id}" aria-current="${id === openRound ? 'step' : 'false'}">
       ${dot}
@@ -476,7 +476,7 @@ function cardView(data, id, card, pick) {
   return html`<article class="${cardClass(isPicked)}" data-key="${id}">
     ${card.video ? videoView(id, card.video, opened.has(id)) : ''}
     ${files.length ? html`<div class="pics">${(opened.has(id) ? files : files.slice(0, 1)).map((itemId) => mediaView(itemId))}${!opened.has(id) && files.length > 1 ? html`<small class="more">+${files.length - 1}</small>` : ''}</div>` : ''}
-    <strong>${card.title}${(card.version ?? 1) > 1 ? html` <small class="muted">v${card.version}</small>` : ''}</strong>
+    <div class="card-title"><strong>${card.title}</strong><span class="badges">${(card.version ?? 1) > 1 ? html`<small class="badge">v${card.version}</small>` : ''}${isPicked ? html`<small class="badge picked">已选</small>` : events.at(-1)?.kind === 'reject' ? html`<small class="badge rejected">已打回</small>` : ''}</span></div>
     <small class="muted"><gugu-avatar user="${card.by}" size="xs"></gugu-avatar> ${nameOf(card.by)}${card.model ? ` · ${card.model}` : ''}${cost ? ` · ${cost}` : ''}</small>
     ${card.text ? html`<div class="text ${opened.has(id) ? 'open' : ''}" data-md="${id}"></div>` : ''}
     ${(card.text && card.text.length > 160) || files.length > 1 || card.video?.strip ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
@@ -498,7 +498,8 @@ function stageView(data) {
   // Who opened it: with a lead at the table, the rounds it opened and the ones the person did are told apart.
   const opener = data.lead ? (round.by === data.lead ? '组长创建' : round.by === me ? '你创建' : `${nameOf(round.by)} 创建`) : ''
   const canSkip = data.lead && !pick && !round.skipped
-  return html`<header class="stage-head" data-key="head:${openRound}">
+  return html`<h5 class="stage-n" data-key="n:${openRound}">第 ${round.n} 轮 · ${round.track}</h5>
+    <header class="stage-head" data-key="head:${openRound}">
       <h2>${round.slot}</h2>
       <span class="writers">${(round.agents ?? []).map((a) => html`<gugu-avatar user="${a}" size="xs"></gugu-avatar>`)}</span>
       ${opener ? html`<small class="muted">${opener}${round.skipped ? ' · 已跳过' : ''}</small>` : ''}
