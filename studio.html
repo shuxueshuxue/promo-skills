@@ -9,12 +9,13 @@
 <body>
 <div id="status" role="status"></div>
 <header id="bar">
-  <textarea id="brief" rows="1" aria-label="需求" placeholder="一句话：要做什么、给谁看、多长"></textarea>
+  <div id="headline"><small id="table-name" class="muted"></small>
+  <textarea id="brief" rows="1" aria-label="需求" placeholder="一句话：要做什么、给谁看、多长"></textarea></div>
+  <!-- The lead agent and what it is doing (with pause / hand back), when the table has one. -->
+  <div id="lead-row"></div>
   <button id="open-round" aria-label="新建轮次"><gugu-icon name="plus"></gugu-icon></button>
   <button id="open-settings" aria-label="设置"><gugu-icon name="settings"></gugu-icon></button>
 </header>
-<!-- The lead agent and what it is doing (with pause / hand back), when the table has one. -->
-<div id="lead-row"></div>
 <!-- What the table has cost so far: a line of its own under the header, empty (and hidden) until something was paid for. -->
 <small id="spend" class="muted"></small>
 

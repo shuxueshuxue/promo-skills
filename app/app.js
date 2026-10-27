@@ -408,17 +408,20 @@ function spineView(data) {
     previous = round.track
     const pick = pickOfRound(data, id)
     const card = pick ? data.cards[pick] : null
-    const dot = card
-      ? (coverOf(card) ? html`<span class="dot">${mediaView(coverOf(card), 'dot-media')}</span>` : html`<span class="dot chosen"></span>`)
-      : html`<span class="dot empty"></span>`
     const cards = Object.entries(data.cards).filter(([, c]) => c.round === id)
-    return html`<button class="node ${round.track === trunk ? '' : 'branch'} ${lineStart ? 'line-start' : ''}" data-line="${round.track}" data-key="${id}" data-act="stage" data-round="${id}" aria-current="${id === openRound ? 'step' : 'false'}">
-      ${dot}
-      <span class="node-text"><span class="node-slot">${round.slot}</span><small class="muted node-pick">${card?.title ?? ''}</small>
+    // The pin says the stage's state by its shape: inked with a check (or the pick's picture) when picked, a lit ring
+    // with its number while it waits for a pick, a plain ring when skipped. The line under the name says it in words.
+    const pin = card
+      ? (coverOf(card) ? html`<span class="dot">${mediaView(coverOf(card), 'dot-media')}</span>` : html`<span class="dot chosen"></span>`)
+      : html`<span class="dot ${round.skipped ? 'skipped' : cards.length ? 'waiting' : 'empty'}">${round.n}</span>`
+    const sub = card ? card.title : round.skipped ? '已跳过' : cards.length ? `${cards.length} 张待你选` : '等写手交卡'
+    return html`<button class="node ${round.track === trunk ? '' : 'branch'} ${lineStart ? 'line-start' : ''} ${card ? 'done' : ''}" data-line="${round.track}" data-key="${id}" data-act="stage" data-round="${id}" aria-current="${id === openRound ? 'step' : 'false'}">
+      ${pin}
+      <span class="node-text"><span class="node-slot">${round.slot}</span><small class="node-pick ${!card && !round.skipped && cards.length ? 'waiting' : ''}">${sub}</small>
         <span class="tally">${cards.map(([cid]) => html`<i class="${cid === pick ? 'on' : eventsOf(data, cid).some((e) => e.kind === 'reject') ? 'x' : ''}"></i>`)}</span></span>
     </button>`
   })}${(data.lead ? data.plan ?? [] : []).map((step, i) => html`<div class="node planned" data-key="plan:${i}:${step.slot}">
-      <span class="dot planned"></span>
+      <span class="dot planned">${Object.keys(data.rounds).length + i + 1}</span>
       <span class="node-text"><span class="node-slot">${step.slot}</span><small class="muted">计划</small></span>
     </div>`)}`
 }
@@ -450,7 +453,7 @@ function leadView(data) {
         ? `下一轮：${data.plan[0].slot}`
         : '计划已完成'
   return html`<gugu-avatar user="${data.lead}" size="xs"></gugu-avatar>
-    <span>${leadLabel(nameOf(data.lead))}：${status}</span>
+    <span><strong>${leadLabel(nameOf(data.lead))}：</strong><span class="muted">${status}</span></span>
     <button class="sm" data-act="lead">${data.paused ? '交还组长' : '暂停组长'}</button>`
 }
 
@@ -468,24 +471,29 @@ function historyView(data, cardId) {
   })}</ol>`
 }
 
-function cardView(data, id, card, pick) {
+function cardView(data, id, card, pick, place, count) {
   const events = eventsOf(data, id)
   const isPicked = id === pick
+  const rejected = !isPicked && events.at(-1)?.kind === 'reject' ? events.at(-1) : null
   const cost = [money(card.cost?.usd), seconds(card.cost?.seconds)].filter(Boolean).join(' · ')
   const files = card.files ?? []
-  return html`<article class="${cardClass(isPicked)}" data-key="${id}">
+  // The text is the card; who wrote it, on which model and at what cost sit a step lower, under it.
+  return html`<article class="${cardClass(isPicked)}" data-key="${id}" data-rejected="${rejected ? 'true' : 'false'}">
+    <small class="card-no">${place} / ${count}</small>
+    ${isPicked ? html`<span class="ribbon pick">已选</span>` : rejected ? html`<span class="ribbon back">已打回 · 等新版</span>` : ''}
     ${card.video ? videoView(id, card.video, opened.has(id)) : ''}
     ${files.length ? html`<div class="pics">${(opened.has(id) ? files : files.slice(0, 1)).map((itemId) => mediaView(itemId))}${!opened.has(id) && files.length > 1 ? html`<small class="more">+${files.length - 1}</small>` : ''}</div>` : ''}
-    <strong>${card.title}${(card.version ?? 1) > 1 ? html` <small class="muted">v${card.version}</small>` : ''}</strong>
-    <small class="muted"><gugu-avatar user="${card.by}" size="xs"></gugu-avatar> ${nameOf(card.by)}${card.model ? ` · ${card.model}` : ''}${cost ? ` · ${cost}` : ''}</small>
+    <h3 class="card-title">${card.title}${(card.version ?? 1) > 1 ? html` <small class="muted">v${card.version}</small>` : ''}</h3>
     ${card.text ? html`<div class="text ${opened.has(id) ? 'open' : ''}" data-md="${id}"></div>` : ''}
-    ${(card.text && card.text.length > 160) || files.length > 1 || card.video?.strip ? html`<button class="sm" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
-    <button class="marks-btn" data-act="history" data-card="${id}" aria-expanded="${histories.has(id)}"><small class="muted">经过：${marksWords(events, isPicked)}</small>${marks(events)}</button>
+    ${(card.text && card.text.length > 160) || files.length > 1 || card.video?.strip ? html`<button class="sm open-more" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}
+    ${rejected?.comment ? html`<blockquote class="verdict">${rejected.comment}<small>${nameOf(rejected.who)} · <gugu-time datetime="${rejected.at}"></gugu-time></small></blockquote>` : ''}
+    <small class="card-meta muted"><gugu-avatar user="${card.by}" size="xs"></gugu-avatar> ${nameOf(card.by)}${card.model ? ` · ${card.model}` : ''}${cost ? ` · ${cost}` : ''}</small>
     ${histories.has(id) ? historyView(data, id) : ''}
-    <div class="row">
-      ${isPicked ? '' : html`<button data-act="pick" data-card="${id}">选这张</button>`}
-      <button data-act="note" data-card="${id}">批注</button>
-    </div>
+    <footer class="card-foot">
+      <button class="marks-btn" data-act="history" data-card="${id}" aria-expanded="${histories.has(id)}"><small class="muted">经过：${marksWords(events, isPicked)}</small>${marks(events)}</button>
+      ${isPicked ? '' : html`<button class="sm" data-act="pick" data-card="${id}">选这张</button>`}
+      <button class="sm" data-act="note" data-card="${id}">批注</button>
+    </footer>
   </article>`
 }
 
@@ -498,14 +506,20 @@ function stageView(data) {
   // Who opened it: with a lead at the table, the rounds it opened and the ones the person did are told apart.
   const opener = data.lead ? (round.by === data.lead ? '组长创建' : round.by === me ? '你创建' : `${nameOf(round.by)} 创建`) : ''
   const canSkip = data.lead && !pick && !round.skipped
-  return html`<header class="stage-head" data-key="head:${openRound}">
-      <h2>${round.slot}</h2>
-      <span class="writers">${(round.agents ?? []).map((a) => html`<gugu-avatar user="${a}" size="xs"></gugu-avatar>`)}</span>
-      ${opener ? html`<small class="muted">${opener}${round.skipped ? ' · 已跳过' : ''}</small>` : ''}
-      ${canSkip ? html`<button class="sm" data-act="skip" data-round="${openRound}">跳过这一轮</button>` : ''}
-    </header>
+  const writers = (round.agents ?? []).map(nameOf).join('、')
+  // What this round is waiting for, said once above its cards: the one thing the person is asked to do here.
+  const banner = pick
+    ? html`<div class="banner done" role="status"><strong>已选定「${data.cards[pick]?.title ?? ''}」</strong><small>${data.lead && !data.paused ? '组长会按它开下一轮' : '下一轮会参考它'}</small></div>`
+    : round.skipped
+      ? html`<div class="banner quiet" role="status"><strong>已跳过这一轮</strong></div>`
+      : cards.length
+        ? html`<div class="banner wait" role="status"><span class="grow"><strong>待你选 · ${cards.length} 张方案</strong><small>选一张${data.lead ? '，组长就按它开下一轮' : ''}；都不满意可以批注或打回</small></span>${canSkip ? html`<button class="sm" data-act="skip" data-round="${openRound}">跳过这一轮</button>` : ''}</div>`
+        : html`<div class="banner quiet" role="status"><strong>等写手交卡</strong>${writers ? html`<small>${writers}</small>` : ''}</div>`
+  return html`<small class="stage-n muted" data-key="n:${openRound}">第 ${round.n} 轮 · ${round.track}${opener ? ` · ${opener}` : ''}${writers ? ` · 写手 ${writers}` : ''}</small>
+    <header class="stage-head" data-key="head:${openRound}"><h2>${round.slot}</h2></header>
     ${round.ask ? html`<p class="muted ask ${askOpen ? 'open' : ''}" data-act="ask">${round.ask}</p>` : ''}
-    <div class="cards">${cards.map(([id, card]) => cardView(data, id, card, pick))}</div>`
+    ${banner}
+    <div class="cards ${pick ? 'has-pick' : ''}">${cards.map(([id, card], i) => cardView(data, id, card, pick, i + 1, cards.length))}</div>`
 }
 
 /** What the table has cost so far, by the App's own tools — empty until something was paid for. */
@@ -554,4 +568,5 @@ window.gugu.onContextChanged((next) => {
 })
 rememberNames()
 draw()
+$('#table-name').textContent = `${String(f.entry.name ?? '片场').replace(/\.studio\.json$/, '')} · 片场`
 window.gugu.setTabTitle?.(String(f.entry.name ?? '片场').replace(/\.studio\.json$/, ''))?.catch?.((error) => say(`标题更新失败：${error.message}`, 'error'))
