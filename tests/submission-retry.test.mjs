@@ -54,10 +54,12 @@ test('a persisted write whose save acknowledgement times out is one card after r
   const timedOut = assert.rejects(submit.run(args, caller), /the card table did not save within 10 s/)
   await f.firstWrite
   assert.equal(Object.keys(f.read().cards).length, 1, 'positive control: the first card reached persistent storage')
+  console.log('persisted_before_timeout=1')
   const originalId = Object.keys(f.read().cards)[0]
   await timedOut
   f.acknowledge()
   const retry = await submit.run(args, caller)
+  assert.equal(Object.keys(f.read().cards).length, 1, 'retry must keep one persisted card')
   assert.equal(retry.card, originalId)
   assert.equal(retry.version, 1)
   assert.equal(Object.keys(f.read().cards).length, 1)
