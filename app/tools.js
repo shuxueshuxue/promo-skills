@@ -264,13 +264,14 @@ export const board = {
 
 export const submit = {
   description:
-    'Hand in one card for a round of a Studio (片场) card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat\'s group folder first (give their item ids), and/or a clip (`video`: just its path in your working copy — submit checks it and makes its cover and strip), or a sound (`audio`: a voice sample from the `voice` tool — one per card). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card.',
+    'Hand in one card for a round of a Studio (片场) card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat\'s group folder first (give their item ids), and/or a clip (`video`: just its path in your working copy — submit checks it and makes its cover and strip), or a sound (`audio`: a voice sample from the `voice` tool — one per card). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card. For a new card, choose submission once before calling and reuse it unchanged if the answer times out.',
   inputSchema: {
     type: 'object',
     required: ['board', 'round'],
     properties: {
       board: BOARD,
       round: { type: 'string', description: 'The round id, from board → askedOfYou.' },
+      submission: { type: 'string', minLength: 1, maxLength: 128, description: 'A stable key for this new card, e.g. narrative-option-1. Required without your own card. Reuse the same key and arguments after a timeout; use a different key for another card, even with identical text.' },
       title: { type: 'string', description: 'A few words the person can pick by. A new version keeps the old title (and text, files) unless you give them again.' },
       text: { type: 'string', description: 'The card itself in markdown: the narrative, the copy, the shot description, what a clip shows.' },
       files: { type: 'array', items: { type: 'string' }, description: 'Item ids of files in this chat (images, clips, audio) that are this card.' },
@@ -292,9 +293,8 @@ export const submit = {
   },
   async run(args, { agent, session, workspaceRoot, model, modelLabel }) {
     if (!agent) throw new Error('submit is for agents (gugu stamps who calls)')
-    // Read before the table is opened: a clip that is not there, or that nobody can hear, is said before anything is written.
-    const clip = args.video ? await originalOf(args.video, { session, workspaceRoot }) : null
-    const sound = args.audio ? await soundOf(args.audio, { session, workspaceRoot }) : null
+    let clip = null
+    let sound = null
     // A clip already on the card, as plain values (the table's own objects are live).
     const plainVideo = (v) => (v ? JSON.parse(JSON.stringify(v)) : null)
     let f = null
@@ -303,6 +303,30 @@ export const submit = {
       const round = f.data.rounds[args.round]
       if (!round) throw new Error(`no round ${args.round} on this table — see board → askedOfYou`)
       const own = args.card && f.data.cards[args.card]?.by === agent ? args.card : null
+      let creationId
+      let fingerprint
+      if (!own) {
+        if (typeof args.submission !== 'string' || !args.submission.trim() || args.submission.length > 128) {
+          throw new Error('a new card needs submission: choose a stable key once and reuse it if this call times out')
+        }
+        creationId = 'c' + createHash('sha256').update(JSON.stringify([agent, args.round, args.submission])).digest('hex').slice(0, 32)
+        fingerprint = createHash('sha256').update(JSON.stringify([
+          args.title ?? null, args.text ?? null, args.files ?? null, args.parents ?? null, args.card ?? null,
+          args.video?.path ?? null, args.audio?.path ?? null, args.cost?.usd ?? null, args.cost?.seconds ?? null, args.cost?.tokens ?? null,
+        ])).digest('hex')
+        const existing = f.data.cards[creationId]
+        if (existing) {
+          if (existing.by !== agent || existing.round !== args.round || existing.submission?.fingerprint !== fingerprint) {
+            throw new Error('submission was already used with different arguments; revise its card or use a new key for a different card')
+          }
+          await flushed(f)
+          const original = (existing.version ?? 1) === 1 ? existing : existing.versions?.[1]
+          return { card: creationId, version: 1, revised: false, ...(original?.video ? { check: original.video.check } : {}) }
+        }
+      }
+      // A retried creation returns above before media is decoded or uploaded again.
+      clip = args.video ? await originalOf(args.video, { session, workspaceRoot }) : null
+      sound = args.audio ? await soundOf(args.audio, { session, workspaceRoot }) : null
       // A new version keeps what it does not say again (a revision that only redraws keeps its title and text).
       const prev = own ? f.data.cards[own] : {}
       const title = String(args.title ?? prev.title ?? '')
@@ -337,11 +361,11 @@ export const submit = {
         // The version this one replaces is kept as it was: the history compares them.
         const replaced = card.version ?? 1
         const versions = { ...(card.versions ?? {}), [replaced]: { title: card.title, text: card.text ?? '', files: card.files ?? [], ...(card.video ? { video: plainVideo(card.video) } : {}), model: card.model ?? null, cost: card.cost ?? {}, at: card.updatedAt ?? card.at } }
-        f.data.cards[id] = { ...fields, round: card.round, slot: card.slot, kind: card.kind, by: agent, parents: card.parents ?? [], version: replaced + 1, versions, at: card.at, updatedAt: at }
+        f.data.cards[id] = { ...fields, round: card.round, slot: card.slot, kind: card.kind, by: agent, parents: card.parents ?? [], version: replaced + 1, versions, ...(card.submission ? { submission: card.submission } : {}), at: card.at, updatedAt: at }
       } else {
-        id = newId('c')
+        id = creationId
         const parents = [...new Set([...(args.parents ?? []), ...(args.card ? [args.card] : [])])].filter((cid) => f.data.cards[cid])
-        f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, at, updatedAt: at }
+        f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, submission: { fingerprint }, at, updatedAt: at }
       }
       await flushed(f)
       return { card: id, version: f.data.cards[id].version, revised: Boolean(own), ...(video ? { check: video.check } : {}) }

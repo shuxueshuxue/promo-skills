@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { after, test } from 'node:test'
+import { after, beforeEach, test } from 'node:test'
 import { ffmpegTools } from '../app/clip.js'
 import { submit } from '../app/tools.js'
 
@@ -23,8 +23,10 @@ truncateSync(path.join(work, 'renders', 'master.mp4'), 25 * 1024 * 1024 + 1)
 writeFileSync(path.join(outside, 'secret.mp4'), 'not yours')
 symlinkSync(path.join(outside, 'secret.mp4'), path.join(work, 'renders', 'link.mp4'))
 
+beforeEach(() => table())
+
 const call = { agent: 'user:a', session: 's-1', workspaceRoot: work }
-const hand = (p, stamp = call, title = 't') => submit.run({ board: 'table', round: 'r1', ...(title ? { title } : {}), video: { path: p } }, stamp)
+const hand = (p, stamp = call, title = 't') => submit.run({ board: 'table', round: 'r1', submission: `${p}:${title}`, ...(title ? { title } : {}), video: { path: p } }, stamp)
 
 test('an original over 25 MB is refused at submit, saying the limit and what to hand in instead', async () => {
   await assert.rejects(hand('renders/master.mp4'), /renders\/master\.mp4 is 25\.0 MB; the table plays an original of up to 25 MB — hand in the 720p review render/)
@@ -131,13 +133,13 @@ test('a cover that cannot be made: nothing reaches the chat or the table, its fo
 
 test("a card's model is the one gugu stamps on the call, never the agent's word; a version without one shows none", async () => {
   const { data } = table()
-  const first = await submit.run({ board: 'table', round: 'r1', title: 't', text: 'a', model: 'what it says it is' }, { ...call, model: 'platform:glm-5.3-flash' })
+  const first = await submit.run({ board: 'table', round: 'r1', submission: 'model-a', title: 't', text: 'a', model: 'what it says it is' }, { ...call, model: 'platform:glm-5.3-flash' })
   assert.equal(data.cards[first.card].model, 'platform:glm-5.3-flash')
   await submit.run({ board: 'table', round: 'r1', card: first.card, text: 'b', model: 'what it says it is' }, call)
   assert.equal(data.cards[first.card].model, null)
   assert.equal(data.cards[first.card].versions[1].model, 'platform:glm-5.3-flash')
   // The menu name gugu stamps beside the id is kept with it; a version stamped without one keeps none.
-  const named = await submit.run({ board: 'table', round: 'r1', title: 'n', text: 'c' }, { ...call, model: 'platform:glm-5.3-flash', modelLabel: 'GLM 5.3 Flash' })
+  const named = await submit.run({ board: 'table', round: 'r1', submission: 'model-b', title: 'n', text: 'c' }, { ...call, model: 'platform:glm-5.3-flash', modelLabel: 'GLM 5.3 Flash' })
   assert.equal(data.cards[named.card].modelLabel, 'GLM 5.3 Flash')
   await submit.run({ board: 'table', round: 'r1', card: named.card, text: 'd' }, { ...call, model: 'gpt-6.1-sol' })
   assert.equal(data.cards[named.card].modelLabel, undefined)
