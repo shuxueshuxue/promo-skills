@@ -97,9 +97,9 @@ test('a creation stalled on upload cannot overwrite a retry that was already rev
     release()
     const late = await delayed
     assert.equal(late.card, retry.card)
-    assert.equal(late.version, 2)
     assert.equal(data.cards[retry.card].text, 'a deliberate revision')
     assert.equal(data.cards[retry.card].version, 2)
+    assert.equal(late.version, 2)
     assert.equal(Object.keys(data.cards).length, 1)
     assert.equal(uploads.length, 4)
     assert.deepEqual(removed.sort(), ['item-1-0', 'item-1-1', 'item-4-0'])
