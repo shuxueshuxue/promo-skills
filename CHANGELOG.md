@@ -1,8 +1,8 @@
+# 片场 (Studio) — changes
+
 ## 0.7.12
 
 - Keep one card when a new submission is retried after a timeout. New cards use a stable submission key; revisions keep their existing card identity.
-
-# 片场 (Studio) — changes
 
 ## 0.7.11
 
