@@ -8,7 +8,12 @@ import { submit } from '../app/tools.js'
 const fixtures = []
 afterEach(() => {
   delete globalThis.gugu
-  for (const dir of fixtures.splice(0)) rmSync(dir, { recursive: true, force: true })
+  for (const dir of fixtures.splice(0)) {
+    console.log(`fixture_cleanup=${dir}`)
+    assert.equal(path.dirname(dir), tmpdir(), 'cleanup stays under this run temporary directory')
+    assert.ok(path.basename(dir).startsWith('studio-submit-retry-'))
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 function fixture({ acknowledged = true } = {}) {
