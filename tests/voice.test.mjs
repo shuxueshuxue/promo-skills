@@ -258,7 +258,7 @@ test('voice samples: one mp3 per voice, each handed in as its own card that play
   // In the writer's own folder for the table (trial 10-12: writers on one computer shared one working copy).
   assert.deepEqual(answer.samples, [{ voice: 'eve', path: 'studio/t/a/voice-samples/eve.mp3' }, { voice: 'rex', path: 'studio/t/a/voice-samples/rex.mp3' }])
   for (const sample of answer.samples) {
-    const card = await submit.run({ board: 'table', round: 'r1', title: `声音 ${sample.voice}`, audio: { path: sample.path } }, call)
+    const card = await submit.run({ board: 'table', round: 'r1', submission: `voice-sample-${sample.voice}`, title: `声音 ${sample.voice}`, audio: { path: sample.path } }, call)
     assert.deepEqual(board.cards[card.card].files, [`item-${uploads.length}-0`])
   }
   // Named by the file and its hash, as covers are: another card's eve.mp3 is another name.

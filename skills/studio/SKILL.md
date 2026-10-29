@@ -110,7 +110,7 @@ open them; the writers hand in cards; the person picks and rejects. You hand in 
 4. Report `cost`: `usd` is what the media API itself reported (the `image` or `voice` tool's `usd`, a video API's `usage.cost`),
    `seconds` the wall time the card took, `tokens` your own approximate count. Leave out what you cannot know; never
    guess dollars.
-5. One `submit` per card. To answer a reject, `submit` again with `card` set to your card: that makes a new version
+5. Choose a stable `submission` key for each new card before its first `submit` (for example `narrative-option-1`). Keep the key and arguments unchanged if the call times out: retrying returns the same card. A different card needs a different key, even if its text is identical. A new submission without a key is refused before anything is written. One `submit` per card. To answer a reject, `submit` again with `card` set to your card: that makes a new version
    (the one it replaces is kept, so the person can compare them), which is what turns the person's reject into
    "待复审". Someone else's card is never edited — cite it in `parents`.
 

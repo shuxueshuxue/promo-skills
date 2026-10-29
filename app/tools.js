@@ -97,13 +97,16 @@ const sha256Of = (abs) =>
     createReadStream(abs).on('data', (chunk) => hash.update(chunk)).on('end', () => resolve(hash.digest('hex'))).on('error', reject)
   })
 
+async function sourceOf(media, stamp, what) {
+  const source = inWorkingCopy(media.path, stamp, what)
+  return { ...source, sha256: await sha256Of(source.abs) }
+}
+
 /** The original of a clip, read where the agent works. */
-async function originalOf(video, { session, workspaceRoot }) {
-  const { rel, abs, stat } = inWorkingCopy(video.path, { session, workspaceRoot }, 'video.path')
+async function originalOf({ rel, abs, stat, sha256 }, { session }) {
   if (stat.size > PLAYABLE_BYTES) {
     throw new Error(`${rel} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the table plays an original of up to 25 MB — hand in the 720p review render instead and keep the master where you rendered it`)
   }
-  const sha256 = await sha256Of(abs)
   // Read here, where it was made: the check first (a clip nobody can hear is refused before anything is written),
   // then its cover and strip, made into a folder of their own for submit to put in the chat.
   const tools = ffmpegTools()
@@ -145,17 +148,17 @@ async function originalOf(video, { session, workspaceRoot }) {
 }
 
 /** The cover and the strip of a clip, put in the table's chat: their item ids, for the card. */
-async function picturesIn(chat, { cover, strip }) {
+async function picturesIn(chat, { cover, strip }, uploaded) {
   const file = (p) => new File([readFileSync(p)], path.basename(p), { type: 'image/jpeg' })
   const entries = await gugu.files.upload({ chat }, [file(cover), file(strip)])
+  uploaded.push(...entries.filter((entry) => entry.id))
   const [coverId, stripId] = entries.map((entry) => entry.id)
   if (!coverId || !stripId) throw new Error('the cover and strip did not reach the chat — try again')
   return { cover: coverId, strip: stripId }
 }
 
 /** A sound handed in with `audio` (a voice sample, a narration): read where it was made — refused when nobody can hear it. */
-async function soundOf(audio, stamp) {
-  const { rel, abs, stat } = inWorkingCopy(audio.path, stamp, 'audio.path')
+async function soundOf({ rel, abs, stat, sha256 }) {
   if (stat.size > PLAYABLE_BYTES) throw new Error(`${rel} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the table plays a sound of up to 25 MB`)
   // A sound has no picture to ask for: only whether anyone can hear it.
   const refusal = refusalOf({ ...(await checkClip(abs, ffmpegTools())), hasPicture: true })
@@ -164,7 +167,7 @@ async function soundOf(audio, stamp) {
   const type = { '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.aac': 'audio/aac', '.ogg': 'audio/ogg' }[ext]
   if (!type) throw new Error(`${rel}: a sound is an mp3, m4a, wav, aac or ogg file`)
   // Named as the cover is: by the file and the first characters of its hash — every card's eve.mp3 is its own name.
-  const sha8 = createHash('sha256').update(readFileSync(abs)).digest('hex').slice(0, 8)
+  const sha8 = sha256.slice(0, 8)
   return { abs, rel, type, name: `${path.basename(rel, path.extname(rel))}-${sha8}${ext}` }
 }
 
@@ -264,13 +267,14 @@ export const board = {
 
 export const submit = {
   description:
-    'Hand in one card for a round of a Studio (片场) card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat\'s group folder first (give their item ids), and/or a clip (`video`: just its path in your working copy — submit checks it and makes its cover and strip), or a sound (`audio`: a voice sample from the `voice` tool — one per card). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card.',
+    'Hand in one card for a round of a Studio (片场) card table — or a new version of one of your own cards (pass `card`; that is how a reject is answered). A card is a title plus text (markdown) and/or files you put in the same chat\'s group folder first (give their item ids), and/or a clip (`video`: just its path in your working copy — submit checks it and makes its cover and strip), or a sound (`audio`: a voice sample from the `voice` tool — one per card). Report what it cost: media dollars as the image/video API reported them, wall seconds, your approximate tokens. One call per card. For a new card, choose submission once before calling and reuse it unchanged if the answer times out.',
   inputSchema: {
     type: 'object',
     required: ['board', 'round'],
     properties: {
       board: BOARD,
       round: { type: 'string', description: 'The round id, from board → askedOfYou.' },
+      submission: { type: 'string', minLength: 1, maxLength: 128, description: 'A stable key for this new card, e.g. narrative-option-1. Required without your own card. Reuse the same key and arguments after a timeout; use a different key for another card, even with identical text.' },
       title: { type: 'string', description: 'A few words the person can pick by. A new version keeps the old title (and text, files) unless you give them again.' },
       text: { type: 'string', description: 'The card itself in markdown: the narrative, the copy, the shot description, what a clip shows.' },
       files: { type: 'array', items: { type: 'string' }, description: 'Item ids of files in this chat (images, clips, audio) that are this card.' },
@@ -292,9 +296,11 @@ export const submit = {
   },
   async run(args, { agent, session, workspaceRoot, model, modelLabel }) {
     if (!agent) throw new Error('submit is for agents (gugu stamps who calls)')
-    // Read before the table is opened: a clip that is not there, or that nobody can hear, is said before anything is written.
-    const clip = args.video ? await originalOf(args.video, { session, workspaceRoot }) : null
-    const sound = args.audio ? await soundOf(args.audio, { session, workspaceRoot }) : null
+    let clip = null
+    let sound = null
+    const uploaded = []
+    let retainedUploads = false
+    let failure = null
     // A clip already on the card, as plain values (the table's own objects are live).
     const plainVideo = (v) => (v ? JSON.parse(JSON.stringify(v)) : null)
     let f = null
@@ -303,6 +309,33 @@ export const submit = {
       const round = f.data.rounds[args.round]
       if (!round) throw new Error(`no round ${args.round} on this table — see board → askedOfYou`)
       const own = args.card && f.data.cards[args.card]?.by === agent ? args.card : null
+      const stamp = { session, workspaceRoot }
+      const videoSource = args.video ? await sourceOf(args.video, stamp, 'video.path') : null
+      const audioSource = args.audio ? await sourceOf(args.audio, stamp, 'audio.path') : null
+      let creationId
+      let fingerprint
+      if (!own) {
+        if (typeof args.submission !== 'string' || !args.submission.trim() || args.submission.length > 128) {
+          throw new Error('a new card needs submission: choose a stable key once and reuse it if this call times out')
+        }
+        creationId = 'c' + createHash('sha256').update(JSON.stringify([agent, args.round, args.submission])).digest('hex').slice(0, 32)
+        fingerprint = createHash('sha256').update(JSON.stringify([
+          args.title ?? null, args.text ?? null, args.files ?? null, args.parents ?? null, args.card ?? null,
+          ...[videoSource, audioSource].map((source) => source ? [source.rel, source.stat.size, source.sha256] : null),
+        ])).digest('hex')
+        const existing = f.data.cards[creationId]
+        if (existing) {
+          if (existing.by !== agent || existing.round !== args.round || existing.submission?.fingerprint !== fingerprint) {
+            throw new Error('submission was already used with different arguments; revise its card or use a new key for a different card')
+          }
+          await flushed(f)
+          const current = f.data.cards[creationId]
+          return { card: creationId, version: current.version ?? 1, revised: false, ...(current.video ? { check: current.video.check } : {}) }
+        }
+      }
+      // A retried creation returns above before media is decoded or uploaded again.
+      clip = videoSource ? await originalOf(videoSource, stamp) : null
+      sound = audioSource ? await soundOf(audioSource) : null
       // A new version keeps what it does not say again (a revision that only redraws keeps its title and text).
       const prev = own ? f.data.cards[own] : {}
       const title = String(args.title ?? prev.title ?? '')
@@ -312,9 +345,10 @@ export const submit = {
       if (!title) throw new Error('a card needs a title')
       if (!text && !files.length && !clip && !sound && !prev.video) throw new Error('a card needs text, files, a video or a sound')
       // The last thing before the card is written: nothing reaches the chat for a card that is refused.
-      const video = clip ? { ...(await picturesIn(f.entry.chat, clip.pictures)), ...clip.video } : null
+      const video = clip ? { ...(await picturesIn(f.entry.chat, clip.pictures, uploaded)), ...clip.video } : null
       if (sound) {
         const [entry] = await gugu.files.upload({ chat: f.entry.chat }, [new File([readFileSync(sound.abs)], sound.name, { type: sound.type })])
+        if (entry?.id) uploaded.push(entry)
         if (!entry?.id) throw new Error('the sound did not reach the chat — try again')
         files.push(entry.id)
       }
@@ -337,18 +371,41 @@ export const submit = {
         // The version this one replaces is kept as it was: the history compares them.
         const replaced = card.version ?? 1
         const versions = { ...(card.versions ?? {}), [replaced]: { title: card.title, text: card.text ?? '', files: card.files ?? [], ...(card.video ? { video: plainVideo(card.video) } : {}), model: card.model ?? null, cost: card.cost ?? {}, at: card.updatedAt ?? card.at } }
-        f.data.cards[id] = { ...fields, round: card.round, slot: card.slot, kind: card.kind, by: agent, parents: card.parents ?? [], version: replaced + 1, versions, at: card.at, updatedAt: at }
+        f.data.cards[id] = { ...fields, round: card.round, slot: card.slot, kind: card.kind, by: agent, parents: card.parents ?? [], version: replaced + 1, versions, ...(card.submission ? { submission: card.submission } : {}), at: card.at, updatedAt: at }
+        retainedUploads = true
       } else {
-        id = newId('c')
-        const parents = [...new Set([...(args.parents ?? []), ...(args.card ? [args.card] : [])])].filter((cid) => f.data.cards[cid])
-        f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, at, updatedAt: at }
+        id = creationId
+        // Handles share the program's live replica. The final check and write have no asynchronous gap:
+        // another call may have created and revised this card while this call was uploading.
+        f.transact(() => {
+          const existing = f.data.cards[id]
+          if (existing) {
+            if (existing.by !== agent || existing.round !== args.round || existing.submission?.fingerprint !== fingerprint) {
+              throw new Error('submission was already used with different arguments; revise its card or use a new key for a different card')
+            }
+            return
+          }
+          const parents = [...new Set([...(args.parents ?? []), ...(args.card ? [args.card] : [])])].filter((cid) => f.data.cards[cid])
+          f.data.cards[id] = { ...fields, round: args.round, slot: round.slot, kind: round.kind, by: agent, parents, version: 1, submission: { fingerprint }, at, updatedAt: at }
+          retainedUploads = true
+        })
       }
       await flushed(f)
-      return { card: id, version: f.data.cards[id].version, revised: Boolean(own), ...(video ? { check: video.check } : {}) }
+      const current = f.data.cards[id]
+      return { card: id, version: current.version, revised: Boolean(own), ...(current.video ? { check: current.video.check } : {}) }
+    } catch (error) {
+      failure = error
+      throw error
     } finally {
       f?.close()
       // The cover and strip were made for this call only: in the chat now, or not wanted.
       if (clip) rmSync(clip.pictures.dir, { recursive: true, force: true })
+      // Only this call's new entries, never a winner's media. A published card keeps its media even if save times out.
+      if (!retainedUploads && uploaded.length) {
+        const results = await Promise.allSettled(uploaded.map((entry) => gugu.files.remove(entry)))
+        const errors = results.filter((result) => result.status === 'rejected').map((result) => result.reason)
+        if (errors.length) throw new AggregateError([...(failure ? [failure] : []), ...errors], 'submission media cleanup failed')
+      }
     }
   },
 }
