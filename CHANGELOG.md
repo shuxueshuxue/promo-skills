@@ -3,6 +3,7 @@
 ## 0.7.12
 
 - Keep one card when a new submission is retried after a timeout. New cards use a stable submission key; revisions keep their existing card identity.
+- Concurrent retries preserve later revisions and remove only their own unused uploads. Cost updates do not change submission identity; media identity includes its bytes, and replay reports the card's current version.
 
 ## 0.7.11
 

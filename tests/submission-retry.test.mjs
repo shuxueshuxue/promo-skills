@@ -98,6 +98,15 @@ test('reusing a key with different input reports a conflict and keeps the origin
   assert.equal(Object.keys(f.read().cards).length, 1)
 })
 
+test('retrying with recomputed cost keeps the original proposal and cost', async () => {
+  const f = fixture()
+  const first = await submit.run({ ...args, cost: { usd: 1, seconds: 10, tokens: 100 } }, caller)
+  const retry = await submit.run({ ...args, cost: { usd: 2, seconds: 20, tokens: 200 } }, caller)
+  assert.equal(retry.card, first.card)
+  assert.deepEqual(f.read().cards[first.card].cost, { usd: 1, seconds: 10, tokens: 100 })
+  assert.equal(Object.keys(f.read().cards).length, 1)
+})
+
 test('a late creation retry preserves a later deliberate revision and its history', async () => {
   const f = fixture()
   const first = await submit.run(args, caller)
@@ -106,7 +115,7 @@ test('a late creation retry preserves a later deliberate revision and its histor
   assert.equal(revised.revised, true)
   const retry = await submit.run(args, caller)
   assert.equal(retry.card, first.card)
-  assert.equal(retry.version, 1)
+  assert.equal(retry.version, 2)
   const card = f.read().cards[first.card]
   assert.equal(card.version, 2)
   assert.equal(card.text, 'a deliberate revision')

@@ -56,6 +56,7 @@ const clip = (name, sound) => {
 function table() {
   const data = { brief: '', rounds: { r1: { n: 1, track: '片子', kind: '整片', slot: '整片', ask: '', each: 1, agents: ['user:a'], refs: [] } }, cards: {}, feedback: {}, rules: {}, names: {} }
   const uploads = []
+  const removed = []
   globalThis.gugu = {
     files: {
       open: async () => ({ data, toJSON: () => structuredClone(data), transact: (fn) => fn(), saved: true, onStatus() {}, close() {}, entry: { id: 'table', chat: 'chat-1', name: 't.studio.json' } }),
@@ -63,13 +64,63 @@ function table() {
         uploads.push({ place, files: files.map((f) => ({ name: f.name, type: f.type, size: f.size })) })
         return files.map((_, i) => ({ id: `item-${uploads.length}-${i}` }))
       },
+      remove: async (entry) => { removed.push(entry.id) },
     },
   }
-  return { data, uploads }
+  return { data, uploads, removed }
 }
 // submit's own folders only (mkdtemp adds 6 characters): another test file's work folder is not counted.
 const clipDirs = () => readdirSync(tmpdir()).filter((name) => /^studio-clip-[A-Za-z0-9]{6}$/.test(name)).length
 const shaOf = (p) => createHash('sha256').update(readFileSync(path.join(work, p))).digest('hex')
+
+test('a creation stalled on upload cannot overwrite a retry that was already revised', { skip: noFfmpeg }, async () => {
+  const p = clip('concurrent.mp4', 'sine=frequency=440:duration=4')
+  const audio = 'renders/concurrent.wav'
+  execFileSync(tools.ffmpeg, ['-hide_banner', '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', path.join(work, audio)])
+  const creation = { board: 'table', round: 'r1', submission: 'concurrent-media', title: 't', video: { path: p }, audio: { path: audio } }
+  const { data, uploads, removed } = table()
+  const upload = gugu.files.upload
+  let entered, release
+  const uploading = new Promise((resolve) => { entered = resolve })
+  const released = new Promise((resolve) => { release = resolve })
+  let first = true
+  gugu.files.upload = async (...args) => {
+    const entries = await upload(...args)
+    if (first) { first = false; entered(); await released }
+    return entries
+  }
+  const delayed = submit.run(creation, call)
+  try {
+    await uploading
+    const retry = await submit.run(creation, call)
+    await submit.run({ board: 'table', round: 'r1', card: retry.card, text: 'a deliberate revision' }, call)
+    release()
+    const late = await delayed
+    assert.equal(late.card, retry.card)
+    assert.equal(late.version, 2)
+    assert.equal(data.cards[retry.card].text, 'a deliberate revision')
+    assert.equal(data.cards[retry.card].version, 2)
+    assert.equal(Object.keys(data.cards).length, 1)
+    assert.equal(uploads.length, 4)
+    assert.deepEqual(removed.sort(), ['item-1-0', 'item-1-1', 'item-4-0'])
+    assert.equal(data.cards[retry.card].video.cover, 'item-2-0')
+    assert.equal(data.cards[retry.card].video.strip, 'item-2-1')
+    assert.deepEqual(data.cards[retry.card].files, ['item-3-0'])
+  } finally { release(); await delayed.catch(() => {}) }
+})
+
+test('a rerender at the same video path conflicts even when its size is unchanged', { skip: noFfmpeg }, async () => {
+  const p = clip('rerender.mp4', 'sine=frequency=440:duration=4')
+  const { data, uploads } = table()
+  const first = await hand(p)
+  const bytes = readFileSync(path.join(work, p))
+  bytes[bytes.length - 1] ^= 1
+  writeFileSync(path.join(work, p), bytes)
+  await assert.rejects(hand(p), /already used with different arguments/)
+  assert.equal(Object.keys(data.cards).length, 1)
+  assert.equal(uploads.length, 1)
+  assert.notEqual(data.cards[first.card].video.sha256, shaOf(p))
+})
 
 test('a clip it takes: its cover and strip go to the table\'s chat, and the card keeps them with its check', { skip: noFfmpeg }, async () => {
   const p = clip('voiced.mp4', 'sine=frequency=440:duration=4')
