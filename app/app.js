@@ -95,7 +95,7 @@ async function loadOriginal(cardId, video) {
   draw()
   let file = null
   try {
-    file = await window.gugu.files.open({ session: video.at.session, name: video.at.path }, { readOnly: true })
+    file = await window.gugu.files.open({ workspace: `session:${video.at.session}`, name: video.at.path }, { readOnly: true })
     const blob = await file.blob()
     const sha = video.sha256 ? hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())) : null
     originals.set(key, { url: URL.createObjectURL(blob), changed: Boolean(sha && sha !== video.sha256) })
