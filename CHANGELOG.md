@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.7.13
+
+- The README (shown as the App's About page) is for people: what Studio does, what it costs and what it may access. The promo-video skill's own overview moved to `skills/promo-video/README.md`, beside the skill agents read.
+
 ## 0.7.12
 
 - Keep one card when a new submission is retried after a timeout. New cards use a stable submission key; revisions keep their existing card identity.
