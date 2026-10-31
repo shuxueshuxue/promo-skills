@@ -1,27 +1,28 @@
 {
   "id": "studio",
   "name": "片场",
-  "version": "0.7.13",
+  "defaultLocale": "zh-CN",
+  "version": "0.8.0",
   "icon": "icon.png",
-  "apiVersion": 12,
+  "apiVersion": 24,
   "platforms": [
     "desktop",
     "phone"
   ],
-  "engines": { "gugu": ">=0.2.55" },
-  "description": "群内协作制作视频：组长安排轮次，写手提交方案与片段，成员批注、选卡或退回修改。支持宣传稿、海报和文案；拍摄真实产品时使用 promo-video skill。",
-  "localized": {
-    "en": {
-      "name": "Studio",
-      "description": "Make videos together in a group: agents submit drafts and clips; people annotate, pick or request revisions."
-    }
+  "engines": {
+    "gugu": ">=0.3.1"
   },
   "author": "promo-skills",
   "repository": "https://github.com/shuxueshuxue/promo-skills",
   "license": "MIT",
   "entry": "studio.html",
   "permissions": {
-    "capabilities": ["files:read:all-machines", "files:write", "chat:relay", "agents:tools"]
+    "capabilities": [
+      "files:read:all-machines",
+      "files:write",
+      "chat:relay",
+      "agents:tools"
+    ]
   },
   "contributes": {
     "tabs": [
@@ -29,11 +30,26 @@
         "name": "main",
         "title": "片场",
         "entry": "studio.html",
-        "opensFiles": { "chat": [".studio.json"] }
+        "opensFiles": {
+          "chat": [
+            ".studio.json"
+          ]
+        }
       }
     ],
-    "mcpServers": [{ "tools": "app/tools.js" }],
-    "toolsListed": true,
-    "skills": "skills"
+    "mcpServers": [
+      {
+        "tools": "app/tools.js"
+      }
+    ],
+    "skills": "skills",
+    "instructions": "Read skill studio first: studio__board, open_round, submit and note run a group's card table. For a real product promo, read skill promo-video."
+  },
+  "subtitle": "群里一起做视频，人只管挑",
+  "localized": {
+    "en": {
+      "name": "Studio",
+      "subtitle": "Make videos together"
+    }
   }
 }

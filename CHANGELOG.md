@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.8.0
+
+- gugu App model v2 (App interface 24): `description` gives way to `subtitle` and `contributes.instructions`; the market page reads `store/` (about, screenshots, whats-new). The README is for the repository.
+
 ## 0.7.13
 
 - The README (shown as the App's About page) is for people: what Studio does, what it costs and what it may access. The promo-video skill's own overview moved to `skills/promo-video/README.md`, beside the skill agents read.
