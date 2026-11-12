@@ -15,6 +15,9 @@
 //             silence: { seconds, at }, black: [[from, to]], white: [[from, to]] }. A card has files, a video, or both.
 //   feedback  { [id]: { card, verdict: note | reject | pick, comment, who, ts } }   append-only, as review/feedback.jsonl was;
 //             a note is anyone's — a person's or an agent's they asked to look; reject and pick are the person's
+//             a note or reject on a clip may carry a point in it (0.10.0): seconds (into the clip), tag (one of TAGS) and
+//             version (of the card it was said about); done { who, ts, comment? } once someone marked it handled
+//             (unmarking sets it null). That is the only thing ever written into an entry after it is added.
 //   rules     { [id]: { text, from, by, at } }                   rules added on this table, on top of director-rulings.md
 //   names     { [user:…]: name }                                 members' names as the page last saw them (who wrote a card after they left)
 //   spend     { [id]: { tool: voice | image, usd, unpriced?, pending?, by, at, what } } what one call of the App's own tools
@@ -116,15 +119,41 @@ export function eventsOf(data, cardId) {
     const saved = card.versions?.[String(v)]
     events.push({ kind: 'version', version: v, at: saved?.at ?? card.at, saved: saved ?? null, lost: !saved })
   }
-  for (const entry of feedbackOf(data, cardId)) events.push({ kind: entry.verdict, at: entry.ts, who: entry.who, comment: entry.comment ?? '' })
+  for (const entry of feedbackOf(data, cardId)) events.push({ kind: entry.verdict, at: entry.ts, who: entry.who, comment: entry.comment ?? '', seconds: entry.seconds, tag: entry.tag, done: entry.done })
   return events.sort((a, b) => time(a.at) - time(b.at) || (a.kind === 'version' ? -1 : 1))
 }
 
-/** Every card's feedback, oldest first. */
+/** Every card's feedback, oldest first, each with its id. */
 export function feedbackOf(data, cardId) {
-  return Object.values(data.feedback ?? {})
-    .filter((entry) => entry.card === cardId)
+  return Object.entries(data.feedback ?? {})
+    .filter(([, entry]) => entry.card === cardId)
+    .map(([id, entry]) => ({ id, ...entry }))
     .sort((a, b) => time(a.ts) - time(b.ts))
+}
+
+/** What a point in a clip is about, when the person says: 画面 / 配音 / 字幕 / 节奏 / 其他. */
+export const TAGS = ['画面', '配音', '字幕', '节奏', '其他']
+
+/** A card's notes and rejects at a point in its clip, in the clip's order (then oldest first). */
+export const timedNotes = (data, cardId) =>
+  feedbackOf(data, cardId)
+    .filter((entry) => entry.verdict !== 'pick' && typeof entry.seconds === 'number')
+    .sort((a, b) => a.seconds - b.seconds || time(a.ts) - time(b.ts))
+
+/** Seconds as a clip's time: 1:05, or 1:05.4 between whole seconds; hours when it has them. */
+export function timecode(seconds) {
+  const tenths = Math.round(Math.max(0, Number(seconds) || 0) * 10)
+  const whole = Math.floor(tenths / 10)
+  const [h, m, s] = [Math.floor(whole / 3600), Math.floor(whole / 60) % 60, whole % 60]
+  const ss = `${String(s).padStart(2, '0')}${tenths % 10 ? `.${tenths % 10}` : ''}`
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
+}
+
+/** A time typed in (65, 1:05, 1:05.4, 0:01:05) as seconds to a tenth; null when it is not one. */
+export function parseTimecode(text) {
+  const parts = String(text ?? '').trim().split(':')
+  if (parts.length > 3 || !parts.every((p, i) => (i === parts.length - 1 ? /^\d+(\.\d+)?$/ : /^\d+$/).test(p))) return null
+  return Math.round(parts.reduce((total, p) => total * 60 + Number(p), 0) * 10) / 10
 }
 
 /** The pick of a slot that stands: its latest. */

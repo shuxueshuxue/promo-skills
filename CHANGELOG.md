@@ -1,5 +1,10 @@
 # 片场 (Studio) — changes
 
+## 0.10.0
+
+- Points in a clip: anyone in the chat can mark a moment of a card's clip — 在此刻标注 under the player, or a time typed into 批注 — with a type (画面 / 配音 / 字幕 / 节奏 / 其他). It is a 批注 (or a reject) with a time: same table, same history. The points sit as pins on a rail under the player and in a list below it; a pin, a row or anywhere on the rail plays the clip from there. Each can be ticked 已处理.
+- Agents: `note` takes `seconds` and `tag`; `annotations` lists a card's notes, its points first in clip order (`open: true` for the unhandled ones); `resolve` marks one handled with a line on what was done. `board` shows each note's point and how many points on a card are still open.
+
 ## 0.9.0
 
 - App interface 25: a clip's original is opened from its session's working copy as `{ workspace: 'session:<id>' }`, read in pieces, so a clip of any size plays (the old whole-file read stopped at 25 MB).
