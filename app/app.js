@@ -35,7 +35,7 @@ if (normalizeTable(structuredClone(f.toJSON())) || f.data.brief === undefined) {
 async function tell(to, text) {
   if (!to) return
   try {
-    await window.gugu.send(to, text, { refs: [{ file: f.entry }] })
+    await window.gugu.dispatch(text, { to: { chat: chatId, member: to }, refs: [{ file: f.entry }] })
   } catch (error) {
     say(`通知 ${nameOf(to)} 失败：${error.code ?? ''} ${error.message}`, 'error')
   }
