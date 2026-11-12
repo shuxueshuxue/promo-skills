@@ -2,7 +2,7 @@
   "id": "studio",
   "name": "片场",
   "defaultLocale": "zh-CN",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "icon": "icon.png",
   "apiVersion": 25,
   "platforms": [
