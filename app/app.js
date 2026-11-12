@@ -9,7 +9,7 @@
 // Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
 // their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, TAGS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, leadLabel, leadToWake, limitsOf, marksWords, money, roundCall, waitingRound, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, spendOf, timecode, timedNotes, parseTimecode, tracksInOrder, withBreaks } from './model.js'
+import { KINDS, TAGS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, leadLabel, leadToWake, limitsOf, marksWords, money, roundCall, waitingRound, normalizeTable, openPoints, pickOfRound, pickOf, pointOn, roundsInOrder, slotOf, spendOf, timecode, timedNotes, parseTimecode, tracksInOrder, withBreaks } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -163,11 +163,8 @@ function seek(cardId, seconds) {
   const clip = card && clipOf(card)
   if (!clip) return
   const player = clipPlayer(clip.videoKey)
-  if (player) {
-    player.currentTime = seconds
-    playheads.set(clip.videoKey, seconds)
-    draw()
-  } else if (card.video) {
+  if (player) player.currentTime = seconds // its timeupdate moves the head
+  else if (card.video) {
     // The original is not here yet: it is fetched, and starts from the point.
     pendingSeek.set(cardId, seconds)
     if (originals.get(clipKey(card.video)) !== 'loading') loadOriginal(cardId, { ...card.video, at: { ...card.video.at } })
@@ -184,8 +181,8 @@ document.addEventListener('timeupdate', (event) => {
   const key = event.target.dataset?.key
   if (event.target.tagName !== 'VIDEO' || !key) return
   playheads.set(key, event.target.currentTime)
-  const length = durations.get(key) || event.target.duration
-  for (const head of document.querySelectorAll(`.rail[data-video="${CSS.escape(key)}"] .head`)) head.style.left = `${Math.min(100, (event.target.currentTime / length) * 100)}%`
+  // Between draws the head is moved here, from the same state and the same length the next draw places it with.
+  for (const rail of document.querySelectorAll(`.rail[data-video="${CSS.escape(key)}"]`)) rail.querySelector('.head').style.left = pct(event.target.currentTime, Number(rail.dataset.length))
 }, true)
 const pct = (at, length) => `${Math.min(100, Math.max(0, (at / length) * 100)).toFixed(2)}%`
 function pointsView(data, cardId, card) {
@@ -193,16 +190,17 @@ function pointsView(data, cardId, card) {
   if (!clip) return ''
   const points = timedNotes(data, cardId)
   const version = card.version ?? 1
-  const length = Math.max(clip.seconds, ...points.map((p) => p.seconds), 0.1)
-  return html`<div class="rail" data-key="rail:${cardId}" data-act="rail" data-card="${cardId}" data-video="${clip.videoKey}" data-length="${length}" title="点一下跳到这一刻">
+  // No rail until the clip's length is known (a file's, once its player has read it): a pin has nowhere to stand.
+  const length = clip.seconds
+  return html`${length ? html`<div class="rail" data-key="rail:${cardId}" data-act="rail" data-card="${cardId}" data-video="${clip.videoKey}" data-length="${length}" title="点一下跳到这一刻">
       <i class="head" style="left: ${pct(playheads.get(clip.videoKey) ?? 0, length)}"></i>
-      ${points.map((p) => html`<button class="pin ${p.done ? 'done' : ''} ${p.verdict === 'reject' ? 'back' : ''}" data-key="${p.id}" data-act="seek" data-card="${cardId}" data-s="${p.seconds}" style="left: ${pct(p.seconds, length)}" title="${timecode(p.seconds)}${p.tag ? ` ${p.tag}` : ''} ${p.comment ?? ''}" aria-label="跳到 ${timecode(p.seconds)}"></button>`)}
-    </div>
-    <div class="row points-head" data-key="points-head:${cardId}"><button class="sm" data-act="mark" data-card="${cardId}"><gugu-icon name="plus"></gugu-icon> 在此刻标注</button>${points.length ? html`<small class="muted">${points.filter((p) => !p.done).length} 条待处理 · 共 ${points.length} 条</small>` : ''}</div>
+      ${points.map((p) => html`<button class="pin ${p.done ? 'done' : ''} ${p.verdict === 'reject' ? 'back' : ''}" data-key="${p.id}" data-act="seek" data-card="${cardId}" data-s="${p.seconds}" style="left: ${pct(p.seconds, length)}" title="${timecode(p.seconds)}${p.tag ? ` ${TAGS[p.tag]}` : ''} ${p.comment ?? ''}" aria-label="跳到 ${timecode(p.seconds)}"></button>`)}
+    </div>` : ''}
+    <div class="row points-head" data-key="points-head:${cardId}"><button class="sm" data-act="mark" data-card="${cardId}"><gugu-icon name="plus"></gugu-icon> 在此刻标注</button>${points.length ? html`<small class="muted">${openPoints(data, cardId).length} 条待处理 · 共 ${points.length} 条</small>` : ''}</div>
     ${points.length ? html`<ol class="points" data-key="points:${cardId}">${points.map((p) => html`<li class="${p.done ? 'done' : ''}" data-key="${p.id}">
       <button class="tc" data-act="seek" data-card="${cardId}" data-s="${p.seconds}">${timecode(p.seconds)}</button>
       <div class="point-body">
-        <span>${p.tag ? html`<span class="tag">${p.tag}</span> ` : ''}${p.verdict === 'reject' ? html`<span class="tag back">打回</span> ` : ''}${p.comment ?? ''}</span>
+        <span>${p.tag ? html`<span class="tag">${TAGS[p.tag]}</span> ` : ''}${p.verdict === 'reject' ? html`<span class="tag back">打回</span> ` : ''}${p.comment ?? ''}</span>
         <small class="muted">${nameOf(p.who)}${p.version && p.version !== version ? ` · 说的是 v${p.version}` : ''} · <gugu-time datetime="${p.ts}"></gugu-time></small>
         ${p.done ? html`<small class="muted">${nameOf(p.done.who)} 标为已处理${p.done.comment ? `：${p.done.comment}` : ''}</small>` : ''}
       </div>
@@ -417,7 +415,7 @@ function takeOverOrHandBack() {
 
 // ─── 批注: one dialog, drawn once. Ticking 「要作者交新版」 makes it a reject (the author is asked for a new version) ───────
 let pending = null // the card id
-$('#say-tag').innerHTML = ['<option value="">不分类</option>', ...TAGS.map((t) => `<option>${t}</option>`)].join('')
+$('#say-tag').innerHTML = ['<option value="">不分类</option>', ...Object.entries(TAGS).map(([key, word]) => `<option value="${key}">${word}</option>`)].join('')
 /** The 批注 dialog; on a card with a clip it takes a point in it too (given when it was opened from the player). */
 function ask(cardId, seconds) {
   pending = cardId
@@ -449,14 +447,18 @@ $('#say-send').onclick = async () => {
   if (!pending || (!comment && verdict === 'note')) return
   const cardId = pending
   const typed = $('#say-at-row').hidden ? '' : $('#say-at').value.trim()
-  const seconds = typed ? parseTimecode(typed) : null
-  const length = typed && clipOf(f.data.cards[cardId] ?? {})?.seconds
-  if (typed && (seconds === null || (length && seconds > length))) {
-    $('#say-at').setCustomValidity(seconds === null ? '时间写成 1:05 或 65 这样' : `片子只有 ${timecode(length)}`)
-    $('#say-at').reportValidity()
-    return
+  let point = {}
+  if (typed) {
+    const card = f.data.cards[cardId]
+    const length = clipOf(card)?.seconds
+    try {
+      point = pointOn(card, parseTimecode(typed) ?? NaN, $('#say-tag').value || undefined, length)
+    } catch (error) {
+      $('#say-at').setCustomValidity(error.code === 'past-end' ? `片子只有 ${timecode(length)}` : '时间写成 1:05 或 65 这样')
+      $('#say-at').reportValidity()
+      return
+    }
   }
-  const point = seconds === null ? {} : { seconds, version: f.data.cards[cardId]?.version ?? 1, ...($('#say-tag').value ? { tag: $('#say-tag').value } : {}) }
   const id = newId('f')
   f.transact(() => {
     f.data.feedback[id] = { card: cardId, verdict, comment, who: me, ts: now(), ...point }
@@ -572,7 +574,7 @@ function historyView(data, cardId) {
     const what = e.kind === 'version' ? `交第 ${e.version} 版` : e.kind === 'pick' ? '选了这张' : e.kind === 'reject' ? '打回' : '批注'
     const who = e.kind === 'version' ? nameOf(data.cards[cardId].by) : nameOf(e.who)
     return html`<li data-key="${cardId}:${i}"><i class="mark ${MARK[e.kind] ?? 'n'}"></i><div>
-      <span><strong>${who}</strong> ${what}${typeof e.seconds === 'number' ? html` <span class="tc">${timecode(e.seconds)}</span>` : ''}${e.tag ? html` <span class="tag">${e.tag}</span>` : ''}</span> <gugu-time datetime="${e.at}"></gugu-time>
+      <span><strong>${who}</strong> ${what}${typeof e.seconds === 'number' ? html` <span class="tc">${timecode(e.seconds)}</span>` : ''}${e.tag ? html` <span class="tag">${TAGS[e.tag]}</span>` : ''}</span> <gugu-time datetime="${e.at}"></gugu-time>
       ${e.comment ? html`<p>${e.comment}</p>` : ''}
       ${e.kind === 'version' && e.lost ? html`<p class="muted">此版本正文未保留：0.3.0 以前提交新版会覆盖旧版。</p>` : ''}
       ${e.kind === 'version' && !e.lost && e.version < (data.cards[cardId].version ?? 1) ? html`<details><summary>版本内容</summary><p class="kept">${e.saved?.title ?? ''}${'\n'}${withBreaks(e.saved?.text)}</p></details>` : ''}

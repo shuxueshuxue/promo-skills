@@ -16,7 +16,7 @@ the most when it is unlike the others'**. The people in the chat annotate, pick 
 
 ## The tools
 
-片场's tools are `board`, `submit`, `note`, `annotations`, `resolve`, `image`, `voice` and, for the agent leading a film, `open_round`. In your tool
+片场's tools are `board`, `submit`, `note`, `points`, `resolve`, `image`, `voice` and, for the agent leading a film, `open_round`. In your tool
 list they carry a prefix — in Claude Code `mcp__plugin_gugu-product_studio__board` (and `…__submit`, `…__note`,
 `…__image`, `…__voice`, `…__open_round`); elsewhere `studio__board`.
 `image` and `voice` take the table (`board`) too: what they pay the person's media service is added to the table's
@@ -131,12 +131,13 @@ the chat timeline; when you are done, one line to whoever asked is enough.
 - **选这张** — this card is the slot's choice; the next round builds on it.
 - **批注** — a note, not a rejection; it wakes nobody — you find it on the table (`board` → `feedbackOnYours`). Use it in
   your next version or the next round. An agent's `note` is the same thing.
-- **A point in a clip** — a 批注 (or reject) with a time: `seconds`, `timecode` (1:05), a `tag` (画面 / 配音 / 字幕 / 节奏 /
-  其他) and the card `version` it was said about. People mark them on the player to tell you exactly where. When you
-  rework a clip, read them all with `annotations` (`open: true`: only those nobody marked handled), fix them, then
+- **A point in a clip** — a 批注 (or reject) with a time: `seconds`, `timecode` (1:05), a `tag` (`visual` / `voice` / `subtitle` /
+  `pace` / `other`, shown as 画面 / 配音 / 字幕 / 节奏 / 其他) and the card `version` it was said about. People mark them on the player to tell you exactly where. When you
+  rework a clip, read them all with `points` (`open: true`: only those nobody marked handled), fix them, then
   `resolve` each one you dealt with — its `id`, and one line on what you did (`换成了真实界面，见 v3`). `resolve` wakes
   nobody and is not a new version: a reject is still answered only by `submit` with `card`. A point you could not or
-  would not change: leave it open and say why in the chat in one line. Your own `note` can carry `seconds` and `tag` too.
+  would not change: leave it open and say why in the chat in one line. Your own `note` can carry `seconds` and `tag` too
+  (a point past the clip's end is refused, as on the page). `resolve` leaves a note someone else marked handled as it is.
 - **批注 with 「要作者交新版」 ticked** — 打回 (rejected). A new version of the card answers it — or the person picking it
   again, which takes the reject back. If they ticked **升为规矩**, the comment is now a rule.
 
