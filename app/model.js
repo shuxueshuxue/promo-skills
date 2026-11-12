@@ -149,10 +149,15 @@ export function timecode(seconds) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 
-/** A time typed in (65, 1:05, 1:05.4, 0:01:05) as seconds to a tenth; null when it is not one. */
+/**
+ * A time typed in (65, 1:05, 1:05.4, 0:01:05) as seconds to a tenth; null when it is not one. After a colon it is two
+ * figures, as the clip's own time shows it: 1:5 is not read as 1:05 (trial 11-12: typed for 0:05, it went to 1:05).
+ */
 export function parseTimecode(text) {
   const parts = String(text ?? '').trim().split(':')
-  if (parts.length > 3 || !parts.every((p, i) => (i === parts.length - 1 ? /^\d+(\.\d+)?$/ : /^\d+$/).test(p))) return null
+  // The last part may have tenths; without them, the first is any whole number and the others two figures.
+  const whole = (p, i) => (i === parts.length - 1 ? p.replace(/\.\d+$/, '') : p)
+  if (parts.length > 3 || !parts.every((p, i) => (i === 0 ? /^\d+$/ : /^\d{2}$/).test(whole(p, i)))) return null
   return Math.round(parts.reduce((total, p) => total * 60 + Number(p), 0) * 10) / 10
 }
 

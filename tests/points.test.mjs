@@ -8,7 +8,7 @@ import { annotations, board, note, resolve } from '../app/tools.js'
 test('a time reads back as it was typed, to a tenth', () => {
   assert.deepEqual([0, 5, 65, 65.4, 3725].map(timecode), ['0:00', '0:05', '1:05', '1:05.4', '1:02:05'])
   assert.deepEqual(['65', '1:05', '1:05.4', '0:01:05', ' 2:00 '].map(parseTimecode), [65, 65, 65.4, 65, 120])
-  for (const bad of ['', 'abc', '1:', ':5', '-3', '1:2:3:4', '1.5:00']) assert.equal(parseTimecode(bad), null, bad)
+  for (const bad of ['', 'abc', '1:', ':5', '-3', '1:2:3:4', '1.5:00', '1:5', '1:5.5', '0:1:05']) assert.equal(parseTimecode(bad), null, bad)
 })
 
 let data

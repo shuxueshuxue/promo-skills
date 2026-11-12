@@ -450,8 +450,9 @@ $('#say-send').onclick = async () => {
   const cardId = pending
   const typed = $('#say-at-row').hidden ? '' : $('#say-at').value.trim()
   const seconds = typed ? parseTimecode(typed) : null
-  if (typed && seconds === null) {
-    $('#say-at').setCustomValidity('时间写成 1:05 或 65 这样')
+  const length = typed && clipOf(f.data.cards[cardId] ?? {})?.seconds
+  if (typed && (seconds === null || (length && seconds > length))) {
+    $('#say-at').setCustomValidity(seconds === null ? '时间写成 1:05 或 65 这样' : `片子只有 ${timecode(length)}`)
     $('#say-at').reportValidity()
     return
   }
