@@ -9,10 +9,13 @@
 // Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
 // their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, TAGS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, leadLabel, leadToWake, limitsOf, marksWords, money, roundCall, waitingRound, normalizeTable, openPoints, pickOfRound, pickOf, pointOn, roundsInOrder, slotOf, spendOf, timecode, timedNotes, parseTimecode, tracksInOrder, withBreaks } from './model.js'
+import { KINDS, MATERIAL, TAGS, TRACKS, addRound, isMaterial, materialsOf, projectName, cardClass, checkLine, coverOf, drawHint, eventsOf, leadLabel, leadToWake, limitsOf, marksWords, money, roundCall, waitingRound, normalizeTable, openPoints, pickOfRound, pickOf, pointOn, roundsInOrder, slotOf, spendOf, timecode, timedNotes, parseTimecode, tracksInOrder, withBreaks } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, parseSettings } from './settings.js'
+import { drawUploads, uploadInto } from './upload.js'
 
 const ctx = await window.gugu.getContext()
+$('#bar').hidden = false
+$('#project').hidden = false
 const md = await window.gugu.markdown()
 const chatId = f.entry.chat ?? ctx.chat?.id
 let members = ctx.chat?.members ?? []
@@ -233,6 +236,14 @@ const showSettings = (on) => {
   }
 }
 $('#open-settings').onclick = () => showSettings(true)
+// 全部工程: Studio on no file, in this chat — the archive (archive.js).
+$('#to-archive').onclick = async () => {
+  try {
+    await window.gugu.openLink(await window.gugu.linkTo({ kind: 'app', tab: 'projects', chat: chatId }))
+  } catch (error) {
+    say(`打不开全部工程：${error.message}`, 'error')
+  }
+}
 $('#back').onclick = () => showSettings(false)
 
 // ─── settings.json in this App's own data folder: the image key and model (the image tool reads them) and the writers
@@ -472,7 +483,8 @@ $('#say-send').onclick = async () => {
 }
 
 // ─── the project: spine and stage ───────────────────────────────────────────────────────────────────────────────────
-let openRound = null // the stage shown
+let openRound = null // the stage shown: a round's id, or MATERIAL_STAGE
+const MATERIAL_STAGE = 'material' // in data-round on the page: printable (a round's id is r + 8 hex)
 // The stage shown follows the newest round — a round the lead opens comes into view by itself (trial 10-12: after a pick
 // the table stayed on the round just picked). A person opening an older stage stops it; picking or skipping starts it again.
 let following = true
@@ -488,7 +500,8 @@ document.addEventListener('click', (event) => {
   const el = event.target.closest('[data-act]')
   if (!el) return
   const { act, card, round } = el.dataset
-  if (act === 'stage') { openRound = round; following = round === roundsInOrder(f.data).at(-1)?.[0]; askOpen = false; draw() }
+  if (act === 'upload') $('#pick-videos').click()
+  else if (act === 'stage') { openRound = round; following = round === roundsInOrder(f.data).at(-1)?.[0]; askOpen = false; draw() }
   else if (act === 'pick') { following = true; f.data.feedback[newId('f')] = { card, verdict: 'pick', who: me, ts: now() }; picked(card) }
   else if (act === 'skip') { following = true; skipped(round) }
   else if (act === 'lead') takeOverOrHandBack()
@@ -514,7 +527,14 @@ function spineView(data) {
   const tracks = tracksInOrder(data)
   const trunk = tracks[0]?.name
   let previous = null // the line of the node before: where it changes, the strip (a narrow panel) draws a divider
-  return html`${roundsInOrder(data).map(([id, round]) => {
+  // 素材 first: the videos people uploaded into the project, a stage of no round (always there: it is where they upload).
+  const materials = materialsOf(data)
+  const open = materials.reduce((sum, [id]) => sum + openPoints(data, id).length, 0)
+  const materialNode = html`<button class="node material-node" data-key="${MATERIAL_STAGE}" data-act="stage" data-round="${MATERIAL_STAGE}" aria-current="${openRound === MATERIAL_STAGE ? 'step' : 'false'}">
+      <span class="dot material">${materials.length}</span>
+      <span class="node-text"><span class="node-slot">${MATERIAL}</span><small class="node-pick ${open ? 'waiting' : ''}">${materials.length ? `${materials.length} 个视频${open ? ` · ${open} 条待处理` : ''}` : '上传视频'}</small></span>
+    </button>`
+  return html`${materialNode}${roundsInOrder(data).map(([id, round]) => {
     const lineStart = previous !== null && round.track !== previous
     previous = round.track
     const pick = pickOfRound(data, id)
@@ -571,7 +591,7 @@ function leadView(data) {
 function historyView(data, cardId) {
   const events = eventsOf(data, cardId)
   return html`<ol class="history">${events.map((e, i) => {
-    const what = e.kind === 'version' ? `交第 ${e.version} 版` : e.kind === 'pick' ? '选了这张' : e.kind === 'reject' ? '打回' : '批注'
+    const what = e.kind === 'version' ? (isMaterial(data.cards[cardId]) ? '上传了' : `交第 ${e.version} 版`) : e.kind === 'pick' ? '选了这张' : e.kind === 'reject' ? '打回' : '批注'
     const who = e.kind === 'version' ? nameOf(data.cards[cardId].by) : nameOf(e.who)
     return html`<li data-key="${cardId}:${i}"><i class="mark ${MARK[e.kind] ?? 'n'}"></i><div>
       <span><strong>${who}</strong> ${what}${typeof e.seconds === 'number' ? html` <span class="tc">${timecode(e.seconds)}</span>` : ''}${e.tag ? html` <span class="tag">${TAGS[e.tag]}</span>` : ''}</span> <gugu-time datetime="${e.at}"></gugu-time>
@@ -602,14 +622,25 @@ function cardView(data, id, card, pick, place, count) {
     <small class="card-meta muted"><gugu-avatar user="${card.by}" size="xs"></gugu-avatar> ${nameOf(card.by)}${card.model ? ` · ${card.modelLabel ?? card.model}` : ''}${cost ? ` · ${cost}` : ''}</small>
     ${histories.has(id) ? historyView(data, id) : ''}
     <footer class="card-foot">
-      <button class="marks-btn" data-act="history" data-card="${id}" aria-expanded="${histories.has(id)}"><small class="muted">经过：${marksWords(events, isPicked)}</small>${marks(events)}</button>
-      ${isPicked ? '' : html`<button class="sm" data-act="pick" data-card="${id}">选这张</button>`}
+      <button class="marks-btn" data-act="history" data-card="${id}" aria-expanded="${histories.has(id)}"><small class="muted">经过：${marksWords(events, isPicked, isMaterial(card))}</small>${marks(events)}</button>
+      ${isPicked || isMaterial(card) ? '' : html`<button class="sm" data-act="pick" data-card="${id}">选这张</button>`}
       <button class="sm" data-act="note" data-card="${id}">批注</button>
     </footer>
   </article>`
 }
 
+/** 素材: the videos people uploaded, each a card with its own points; uploading more is here too. */
+function materialStage(data) {
+  const cards = materialsOf(data)
+  return html`<small class="stage-n muted" data-key="n:material">素材 · 人上传的视频</small>
+    <header class="stage-head" data-key="head:material"><h2>${MATERIAL}</h2><button class="sm" data-act="upload"><gugu-icon name="arrow-up-to-line"></gugu-icon> 上传视频</button></header>
+    <ul class="uploads" id="stage-tray" data-key="tray"></ul>
+    <div class="banner quiet" role="status" data-key="banner:material"><span class="grow"><strong>${cards.length ? `${cards.length} 个视频` : '还没有视频'}</strong><small>${cards.length ? '在视频上打点、批注；组长开下一轮时可以拿它们当参考。' : '上传的视频放在群文件夹的「片场」里，每个都可以打点。一个文件最大 25 MB。'}</small></span></div>
+    <div class="cards">${cards.map(([id, card], i) => cardView(data, id, card, null, i + 1, cards.length))}</div>`
+}
+
 function stageView(data) {
+  if (openRound === MATERIAL_STAGE) return materialStage(data)
   const round = data.rounds[openRound]
   if (!round) return html`<gugu-empty icon="checklist"><strong>暂无方案</strong><small>填写需求后创建第一轮</small><button class="primary" data-act="first-round">新建轮次</button></gugu-empty>`
   const pick = pickOfRound(data, openRound)
@@ -644,9 +675,12 @@ function spendLine(data) {
 
 function draw() {
   const data = f.data
-  if (following || !openRound || !data.rounds[openRound]) openRound = roundsInOrder(data).at(-1)?.[0] ?? null
+  if (following || !openRound || (openRound !== MATERIAL_STAGE && !data.rounds[openRound])) {
+    openRound = roundsInOrder(data).at(-1)?.[0] ?? MATERIAL_STAGE // no round yet: 素材, where videos are uploaded
+  }
   render($('#spine'), spineView(data))
   render($('#stage'), stageView(data))
+  if ($('#stage-tray')) drawUploads($('#stage-tray'))
   $('#spend').textContent = spendLine(data)
   render($('#lead-row'), leadView(data))
   const rules = Object.values(data.rules).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
@@ -669,6 +703,14 @@ function draw() {
 function rememberNames() {
   const changed = members.filter((m) => m.name && f.data.names[m.id] !== m.name)
   if (changed.length) f.transact(() => { for (const m of changed) f.data.names[m.id] = m.name })
+}
+// Videos picked on the 素材 stage go into this project, each on its own.
+$('#pick-videos').onchange = () => {
+  const files = [...$('#pick-videos').files]
+  $('#pick-videos').value = ''
+  openRound = MATERIAL_STAGE
+  following = false
+  uploadInto(files, { chat: chatId, project: projectName(f.entry.name), table: f, by: me }, draw)
 }
 f.onChange(draw)
 window.gugu.onContextChanged((next) => {

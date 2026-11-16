@@ -1,5 +1,11 @@
 # 片场 (Studio) — changes
 
+## 0.11.0
+
+- An archive of the chat's projects: Studio's own page (a new tab, `projects`, that opens no file — 打开 on Studio's card and the rail open it) lists every card table of the chat. Each `.studio.json` is one project: nothing is moved or rewritten, an existing table is simply one of them, with its picture, what was picked, its open points and who leads it. A project opens beside the archive (the one already open is shown, never a second); 全部工程 on a table goes back.
+- Videos uploaded into a project: picked (or dropped on a project in the archive) into an existing project or a new one, each file uploaded on its own — all at the same time, each with its own state. They go into the chat folder's `片场/<project>/` and each becomes a 素材 card of no round: points, notes and agents' tools work on it as on any card. A file over the platform's 25 MB limit for an App's upload is refused on its row.
+- `new_project` (agents): make an empty project in a chat, no round and no lead; the people see it in the archive. `open_round`'s first call makes its table the same way.
+
 ## 0.10.0
 
 - Points in a clip: anyone in the chat can mark a moment of a card's clip — 在此刻标注 under the player, or a time typed into 批注 — with a type (画面 / 配音 / 字幕 / 节奏 / 其他). It is a 批注 (or a reject) with a time: same table, same history. The points sit as pins on a rail under the player and in a list below it; a pin, a row or anywhere on the rail plays the clip from there. Each can be ticked 已处理.

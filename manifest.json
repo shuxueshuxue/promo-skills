@@ -2,7 +2,7 @@
   "id": "studio",
   "name": "片场",
   "defaultLocale": "zh-CN",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "icon": "icon.png",
   "apiVersion": 25,
   "platforms": [
@@ -27,6 +27,11 @@
   "contributes": {
     "tabs": [
       {
+        "name": "projects",
+        "title": "片场",
+        "entry": "studio.html"
+      },
+      {
         "name": "main",
         "title": "片场",
         "entry": "studio.html",
@@ -43,7 +48,7 @@
       }
     ],
     "skills": "skills",
-    "instructions": "Read skill studio first: studio__board, open_round, submit, note, points and resolve run a card table. For a real product promo, read skill promo-video."
+    "instructions": "Read skill studio first: studio__board, open_round, new_project, submit, note, points, resolve run a chat's projects. Real product promo: skill promo-video."
   },
   "subtitle": "群里一起做视频，人只管挑",
   "localized": {
@@ -52,6 +57,9 @@
       "subtitle": "Make videos together",
       "tabs": {
         "main": {
+          "title": "Studio"
+        },
+        "projects": {
           "title": "Studio"
         }
       }

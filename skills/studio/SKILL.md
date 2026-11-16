@@ -16,7 +16,7 @@ the most when it is unlike the others'**. The people in the chat annotate, pick 
 
 ## The tools
 
-片场's tools are `board`, `submit`, `note`, `points`, `resolve`, `image`, `voice` and, for the agent leading a film, `open_round`. In your tool
+片场's tools are `board`, `submit`, `note`, `points`, `resolve`, `image`, `voice`, `new_project` and, for the agent leading a film, `open_round`. In your tool
 list they carry a prefix — in Claude Code `mcp__plugin_gugu-product_studio__board` (and `…__submit`, `…__note`,
 `…__image`, `…__voice`, `…__open_round`); elsewhere `studio__board`.
 `image` and `voice` take the table (`board`) too: what they pay the person's media service is added to the table's
@@ -28,6 +28,17 @@ person in one line — do not write the table file by hand, and do not call the 
 who you are and tell whom it concerns, a hand edit does neither. **Never read 片场's own settings file** (`settings.json` in
 the App's data folder): it holds the person's own key, which the `image` tool uses for you — read, it would go into
 your context and on to your model's provider.
+
+## A chat's projects (`new_project`)
+
+A chat can hold several projects: each is one card table, a `<name>.studio.json` in the chat folder. Studio opened in
+the chat on no file is the archive that lists them; the people open a project there and upload videos into it.
+- When someone asks for a new project (not a film to lead yet), call `new_project` with `chat`, `title` and `brief`: it
+  makes an empty table — no round, no lead — that the people see in the archive. It answers the table as `board`; to
+  lead a film in it later, give that board to `open_round`.
+- A video a person uploaded is a card of kind `素材` with no round (`round: null` on `board`), its file in `files`.
+  Note and `points` work on it as on any card; build on it in a round with `refs` / `parents`. It is the person's: you
+  never `submit` over it, and nobody picks it.
 
 ## When you are woken
 

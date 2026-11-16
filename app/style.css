@@ -140,10 +140,67 @@ body { margin: 0; }
 #settings h5 { margin: 0; }
 
 /* a narrow panel (a chat's side panel is 440 px): the spine is a strip across the top */
+/* the archive (Studio opened on no file): the chat's projects, one card each */
+#archive { padding: var(--em-spacing-lg) var(--em-spacing-xl) var(--em-spacing-2xl); }
+.arch-head { display: flex; align-items: center; gap: var(--em-spacing-md); padding-bottom: var(--em-spacing-md); border-bottom: 1px solid var(--em-border); margin-bottom: var(--em-spacing-lg); }
+.arch-head .grow { flex: 1; min-width: 0; }
+.arch-head h2 { margin: 0; }
+.projects { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--em-spacing-lg); }
+.project.card { display: flex; flex-direction: column; gap: var(--em-spacing-sm); padding: 0 0 var(--em-spacing-md); border-radius: var(--em-radius-xl); overflow: hidden; cursor: pointer; }
+.project:hover { box-shadow: 0 0 0 1px var(--em-border-1); }
+.project.drop { box-shadow: 0 0 0 2px var(--em-accent-9); }
+.project .cover { position: relative; aspect-ratio: 16 / 9; background: var(--em-background-3); }
+.project .cover img, .project .cover video { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border-radius: 0; max-width: none; object-fit: cover; display: block; }
+.project .cover.empty { display: grid; place-items: center; color: var(--em-foreground-passive); }
+.project .cover .count { position: absolute; right: 8px; bottom: 8px; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, black 62%, transparent); color: white; font-size: var(--em-font-caption); }
+.project .body { display: grid; gap: 4px; padding: 0 var(--em-spacing-lg); }
+.project h3 { margin: 0; }
+.project .brief { color: var(--em-foreground-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.project .facts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.project .who { display: flex; align-items: center; gap: 6px; padding: var(--em-spacing-sm) var(--em-spacing-lg) 0; border-top: 1px solid var(--em-border); margin-top: auto; }
+.project .who .grow { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project .who > small { white-space: nowrap; }
+.pill { padding: 0 8px; border-radius: 999px; font-size: var(--em-font-caption); background: var(--em-background-3); color: var(--em-foreground-muted); }
+.pill.warn { background: var(--em-background-warning); color: var(--em-foreground-warning); }
+.pill.ok { background: var(--em-background-success); color: var(--em-foreground-success); }
+
+/* uploads: a row each — none waits for another */
+.uploads { list-style: none; margin: 0 0 var(--em-spacing-lg); padding: var(--em-spacing-sm) var(--em-spacing-md); display: grid; gap: var(--em-spacing-sm); border-radius: var(--em-radius-xl); background: var(--em-background-1); box-shadow: 0 0 0 1px var(--em-border); }
+.uploads:empty { display: none; }
+.uploads li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--em-spacing-md); align-items: center; }
+.uploads .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uploads .state { display: flex; align-items: center; gap: var(--em-spacing-sm); }
+.uploads progress { grid-column: 1 / -1; margin: 0; height: 4px; }
+.uploads .bad { color: var(--em-foreground-destructive); }
+.uploads .good { color: var(--em-foreground-success); }
+.upload-box { width: min(520px, 92vw); }
+.upload-box .files { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 9lh; overflow: auto; }
+.upload-box .files li { display: flex; gap: var(--em-spacing-sm); }
+.upload-box .files .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upload-box fieldset { display: grid; gap: var(--em-spacing-sm); }
+.upload-box .where { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--em-spacing-sm); align-items: center; }
+.upload-box .where .row { margin: 0; }
+
+/* inside a project: the way back to the archive, and 素材 as the spine's first stage */
+#bar .back { flex: none; margin-top: 2px; }
+.dot.material { background: var(--em-background-3); border: 2px solid var(--em-border-1); color: var(--em-foreground); }
+.node.material-node { margin-bottom: var(--em-spacing-sm); }
+.node.material-node::after { display: none; }
+
 @media (max-width: 600px) {
+  #archive { padding: var(--em-spacing-md); }
+  .arch-head { flex-wrap: wrap; }
+  .arch-head .grow { flex-basis: 100%; }
+  .projects { grid-template-columns: 1fr; }
+  .project.card { display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 0 var(--em-spacing-md); padding: var(--em-spacing-sm); }
+  .project .cover { border-radius: var(--em-radius-control); overflow: hidden; grid-row: span 2; align-self: start; }
+  .project .body { padding: 0; }
+  .project .brief { -webkit-line-clamp: 1; }
+  .project .who { grid-column: 2; border-top: 0; padding: 0; }
   #project { grid-template-columns: 1fr; min-height: 0; }
   .node:not(:last-child)::after { display: none; }
   #bar { flex-wrap: wrap; padding: var(--em-spacing-md); }
+  #headline { order: 2; flex-basis: 100%; }
   #lead-row { order: 3; max-width: none; flex-basis: 100%; }
   #brief { font-size: var(--em-font-title); line-height: 1.5; }
   .banner { flex-wrap: wrap; }
