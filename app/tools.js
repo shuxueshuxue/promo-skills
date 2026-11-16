@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MAX_SECONDS, checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
 import { PRICING, catchUp, costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
-import { KINDS, TAGS, addRound, answered, feedbackOf, limitsOf, normalizeTable, openPoints, pointOn, timecode, picksSoFar, planAfter, planOf, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
+import { KINDS, TAGS, addRound, newTable, tableFileName, answered, feedbackOf, limitsOf, normalizeTable, openPoints, pointOn, timecode, picksSoFar, planAfter, planOf, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, VOICE_MODEL, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .studio.json file the whisper you got is about.' }
@@ -722,6 +722,29 @@ const ROUND = {
   },
 }
 
+export const new_project = {
+  description:
+    'Make a new Studio (片场) project in a chat: an empty card table (a .studio.json in the chat folder), shown on Studio\'s archive page where the people open it and upload videos into it. It opens no round and makes nobody its lead — to lead a film in it, call open_round with the board this returns. Give chat (this group), title and brief.',
+  inputSchema: {
+    type: 'object',
+    required: ['chat', 'title', 'brief'],
+    properties: {
+      chat: { type: 'string', format: 'gugu-chat', description: 'This group (the chat of the message that asked you): its id or its number.' },
+      title: { type: 'string', description: 'The project\'s name — the file is named after it.' },
+      brief: { type: 'string', description: 'What the project is for, in a sentence or two.' },
+    },
+  },
+  async run(args, { agent }) {
+    if (!agent) throw new Error('new_project is for agents (gugu stamps who calls)')
+    if (typeof args.chat !== 'string' || !args.chat.trim()) throw new Error('chat: this chat\'s id or its number, as a string')
+    const title = String(args.title ?? '').trim()
+    const brief = String(args.brief ?? '').trim()
+    if (!title || !brief) throw new Error('give title (the project\'s name) and brief (what it is for)')
+    const entry = await gugu.files.create({ chat: args.chat.trim(), name: tableFileName(title) }, newTable({ brief }))
+    return { board: entry.id, name: entry.name, next: 'the people see it on Studio\'s archive page; to lead a film in it, call open_round with this board' }
+  },
+}
+
 export const open_round = {
   description:
     'Lead a Studio (片场) table: when the person asks the group for a film, plan its rounds and open them one at a time. The first call makes the table in this chat (give chat, title and brief, no board) and makes you its lead; every call opens one round — its writers are woken with what it asks — and may rewrite the plan of the rounds after it. A round opens only when every earlier one has a pick or was skipped: the person picks, and you are woken when they do. A table has at most 8 rounds and a round at most 4 writers unless the person set otherwise; while the person has taken the table over, nothing opens.',
@@ -770,7 +793,7 @@ export const open_round = {
       const brief = String(args.brief ?? '').trim()
       if (!chat || !title || !brief) throw new Error('the first call makes the table: give chat (this group\'s chat id), title (the film\'s name) and brief (what the person asked for) — or give board, the table you lead')
       fits(limitsOf({}))
-      const entry = await gugu.files.create({ chat, name: `${title.replace(/[\/:*?"<>|]/g, ' ').trim()}.studio.json` }, { brief: { $text: brief }, lead: agent, plan: [], rounds: {}, cards: {}, feedback: {}, rules: {}, names: {}, spend: {} })
+      const entry = await gugu.files.create({ chat, name: tableFileName(title) }, newTable({ brief, lead: agent }))
       board = entry.id
       // Opened in the chat it was made in, as the lead (a bare id would open it as the person — review r4).
       opening = { chat: entry.chat ?? chat, id: entry.id }

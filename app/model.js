@@ -28,6 +28,9 @@
 //   paused    true while the person has taken the table over from the lead (open_round opens nothing)
 //   limits    { rounds, writers, each }   the person's own, over LIMITS
 //   rounds[].skipped   the person passed a round without a pick: the lead may go on
+//   cards[] with kind 素材 and no round (0.11.0): a video a person uploaded into the project (materialCard) — its file in
+//             the chat folder 片场/<project>/; notes, points and history as on any card, never picked
+// A chat's projects are its *.studio.json files, one table each: Studio opened on no file lists them (archive.js).
 // Everything many people and agents add to is a map by id (no arrays to fight over).
 
 export const KINDS = ['叙事', '文案', '分镜', '配音', '变式', '片头', '整片', '宣传稿', '其他']
@@ -331,10 +334,10 @@ export function money(usd) {
 }
 
 /** A card's history in words, beside its marks: how many versions, notes and rejects, and whether it is the pick. */
-export function marksWords(events, picked) {
+export function marksWords(events, picked, uploaded = false) {
   const count = (kind) => events.filter((e) => e.kind === kind).length
   return [
-    `交了 ${count('version')} 版`,
+    uploaded ? '上传' : `交了 ${count('version')} 版`,
     count('note') ? `批注 ${count('note')}` : '',
     count('reject') ? `打回 ${count('reject')}` : '',
     picked ? '选中' : '',
@@ -378,6 +381,45 @@ export function workingCopyPath(path) {
   const parts = slashed.split('/').filter((part) => part && part !== '.')
   if (!parts.length || slashed.startsWith('/') || /^[a-z]:$/i.test(parts[0]) || parts.includes('..')) return null
   return parts.join('/')
+}
+
+/** A project's file and its name: the table is named after the film (newTable's callers write it under this name). */
+export const TABLE_SUFFIX = '.studio.json'
+export const tableFileName = (title) => `${String(title ?? '').replace(/[\/:*?"<>|]/g, ' ').trim()}${TABLE_SUFFIX}`
+export const projectName = (fileName) => String(fileName ?? '').replace(/\.studio\.json$/, '') || '片场'
+
+/** A new table, whoever makes it: open_round's first call (with its lead), new_project and the archive's 新建工程. */
+export const newTable = ({ brief, lead }) => ({ brief: { $text: String(brief ?? '') }, ...(lead ? { lead } : {}), plan: [], rounds: {}, cards: {}, feedback: {}, rules: {}, names: {}, spend: {} })
+
+/** 素材: a video a person uploaded into the project — a card of no round, so notes, points and agents' tools take it as any card. */
+export const MATERIAL = '素材'
+export const isMaterial = (card) => card?.kind === MATERIAL && !card.round
+export const materialsOf = (data) => Object.entries(data.cards ?? {}).filter(([, card]) => isMaterial(card)).sort(([, a], [, b]) => (a.at ?? '').localeCompare(b.at ?? ''))
+export const materialCard = (entry, by, at) => ({ round: null, slot: MATERIAL, kind: MATERIAL, title: entry.name, text: '', files: [entry.id], parents: [], by, version: 1, at, updatedAt: at })
+/** Where a project's uploaded videos go in the chat folder. */
+export const materialFolder = (project) => `片场/${String(project).replace(/[\/:*?"<>|]/g, ' ').trim() || '工程'}`
+/**
+ * The largest file an App puts in a chat (the platform's own limit, APP_FILE_MAX_BYTES): checked before a video is read
+ * into memory to be sent — the platform would refuse it only after reading all of it.
+ */
+export const UPLOAD_LIMIT = 25 * 1024 * 1024
+
+/** A project as the archive shows it: rounds, cards, uploaded videos, open points, its picture and what was picked last. */
+export function projectFacts(data) {
+  const cards = Object.entries(data.cards ?? {})
+  const materials = materialsOf(data)
+  const rounds = roundsInOrder(data)
+  const lastPick = rounds.map(([id]) => pickOfRound(data, id)).filter(Boolean).at(-1) ?? null
+  const picked = lastPick ? data.cards[lastPick] : null
+  const latest = cards.map(([, card]) => card).sort((a, b) => (b.updatedAt ?? b.at ?? '').localeCompare(a.updatedAt ?? a.at ?? ''))[0]
+  return {
+    rounds: rounds.length,
+    cards: cards.length - materials.length,
+    materials: materials.length,
+    openPoints: cards.reduce((sum, [id]) => sum + openPoints(data, id).length, 0),
+    picked: picked ? { title: picked.title, kind: picked.kind, version: picked.version ?? 1 } : null,
+    cover: coverOf(picked) ?? coverOf(materials.at(-1)?.[1]) ?? coverOf(latest),
+  }
 }
 
 export const roundsInOrder = (data) => Object.entries(data.rounds ?? {}).sort(([, a], [, b]) => (a.n ?? 0) - (b.n ?? 0))

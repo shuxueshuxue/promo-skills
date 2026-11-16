@@ -8,7 +8,8 @@
 </head>
 <body>
 <div id="status" role="status"></div>
-<header id="bar">
+<header id="bar" hidden>
+  <button id="to-archive" class="back"><gugu-icon name="chevron-left"></gugu-icon> 全部工程</button>
   <div id="headline"><small id="table-name" class="muted"></small>
   <textarea id="brief" rows="1" aria-label="需求" placeholder="一句话：要做什么、给谁看、多长"></textarea></div>
   <!-- The lead agent and what it is doing (with pause / hand back), when the table has one. -->
@@ -19,8 +20,21 @@
 <!-- What the table has cost so far: a line of its own under the header, empty (and hidden) until something was paid for. -->
 <small id="spend" class="muted"></small>
 
+<!-- The archive (Studio opened on no file): the chat's projects, a new one, videos uploaded into one. archive.js -->
+<main id="archive" hidden>
+  <header class="arch-head">
+    <div class="grow"><h2>片场</h2><small class="muted" id="arch-sub"></small></div>
+    <button id="arch-upload" class="primary"><gugu-icon name="arrow-up-to-line"></gugu-icon> 上传视频</button>
+    <button id="arch-new"><gugu-icon name="plus"></gugu-icon> 新建工程</button>
+  </header>
+  <ul class="uploads" id="arch-tray" hidden></ul>
+  <div class="projects" id="projects"></div>
+</main>
+<!-- Videos picked to upload, on either page: each goes up on its own (upload.js). -->
+<input type="file" id="pick-videos" accept="video/*" multiple hidden />
+
 <!-- The project: the stages down the left, the open one's candidates on the right. -->
-<main id="project">
+<main id="project" hidden>
   <nav id="spine" aria-label="阶段"></nav>
   <section id="stage"></section>
 </main>
@@ -90,6 +104,26 @@
     <div class="row"><button id="say-cancel">取消</button><button class="primary" id="say-send">提交批注</button></div>
   </div>
 </dialog>
-<script type="module" src="app/app.js"></script>
+<dialog id="upload-box" class="upload-box">
+  <form method="dialog" class="stack">
+    <strong id="up-title"></strong>
+    <ul class="files" id="up-files"></ul>
+    <fieldset><legend>放进</legend>
+      <label class="where"><input type="radio" name="up-where" value="old" id="up-old" checked /> <span class="row">已有工程 <select id="up-project"></select></span></label>
+      <label class="where"><input type="radio" name="up-where" value="new" id="up-new" /> <span class="row">新工程 <input id="up-name" placeholder="工程名" /></span></label>
+    </fieldset>
+    <small class="muted">每个视频各传各的，互不等待；传完就出现在工程的「素材」里，可以打点。一个文件最大 25 MB。</small>
+    <div class="row"><button type="button" id="up-cancel">取消</button><button type="button" class="primary" id="up-start">开始上传</button></div>
+  </form>
+</dialog>
+<dialog id="project-box">
+  <form method="dialog" class="stack">
+    <strong>新建工程</strong>
+    <label>工程名 <input id="np-title" placeholder="例如：App 市场短片" /></label>
+    <label>需求 <textarea id="np-brief" rows="2" placeholder="一句话：要做什么、给谁看、多长"></textarea></label>
+    <div class="row"><button type="button" id="np-cancel">取消</button><button type="button" class="primary" id="np-make">新建并打开</button></div>
+  </form>
+</dialog>
+<script type="module" src="app/main.js"></script>
 </body>
 </html>
