@@ -80,6 +80,10 @@
 <dialog id="say-box">
   <div class="stack">
     <strong id="say-title"></strong>
+    <div class="row" id="say-at-row" hidden>
+      <label>时间点 <input id="say-at" inputmode="decimal" size="8" placeholder="整张卡" /></label>
+      <label>类型 <select id="say-tag"></select></label>
+    </div>
     <textarea id="say-text" rows="4" placeholder="填写评价或修改要求"></textarea>
     <label id="say-reject-row"><input type="checkbox" id="say-reject" /> <strong>退回修改，要求提交新版</strong></label>
     <label><input type="checkbox" id="say-rule" /> 同时设为项目规则，适用于后续轮次</label>

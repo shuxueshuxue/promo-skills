@@ -26,7 +26,10 @@ function chat({ failSendTo = [] } = {}) {
         return { data, toJSON: () => structuredClone(data), transact: (fn) => fn(), saved: true, onStatus() {}, close() {}, entry: { id, chat: 'chat-1', name: 't.studio.json' } }
       },
     },
-    send: async (to, text, where) => {
+    // gugu.dispatch (App interface 15): a writer is a member of the table's chat, woken with the table as a ref.
+    dispatch: async (text, where) => {
+      assert.equal(where?.to?.chat, 'chat-1')
+      const to = where.to.member
       if (failSendTo.includes(to)) throw Object.assign(new Error('not in this chat'), { code: 'invalid' })
       if (where?.about != null) throw Object.assign(new Error('about is gone: name the file in refs'), { code: 'invalid' })
       const file = where?.refs?.[0]?.file

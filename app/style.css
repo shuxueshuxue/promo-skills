@@ -111,6 +111,24 @@ body { margin: 0; }
 .history p { margin: 2px 0 0; }
 .history .kept { white-space: pre-wrap; color: var(--em-foreground-muted); max-height: 10lh; overflow: auto; }
 
+/* points in a clip: a rail of pins under the player (a pin, or anywhere on the rail, plays from there), then the list */
+.rail { position: relative; height: 18px; margin-top: calc(-1 * var(--em-spacing-sm)); cursor: pointer; touch-action: manipulation; }
+.rail::before { content: ''; position: absolute; left: 0; right: 0; top: 8px; height: 2px; border-radius: 1px; background: var(--em-border-1); }
+.rail .head { position: absolute; top: 3px; width: 2px; height: 12px; margin-left: -1px; background: var(--em-foreground-muted); pointer-events: none; }
+.rail .pin { position: absolute; top: 3px; width: 12px; height: 12px; min-height: 0; margin-left: -6px; padding: 0; border: 2px solid var(--em-background); border-radius: 50%; background: var(--em-foreground-warning); }
+.rail .pin.back { background: var(--em-foreground-destructive); }
+.rail .pin.done { background: var(--em-border-1); }
+.rail .pin:hover, .rail .pin:focus-visible { transform: scale(1.3); }
+.points-head { align-items: center; gap: var(--em-spacing-sm); }
+.points { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--em-spacing-xs); }
+.points li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--em-spacing-sm); align-items: start; }
+.points li.done .point-body > span { color: var(--em-foreground-muted); text-decoration: line-through; }
+.point-body { display: grid; min-width: 0; }
+.tc { font-variant-numeric: tabular-nums; font-family: var(--em-font-mono, ui-monospace, monospace); font-size: var(--em-font-caption); padding: 0 6px; min-height: 0; border-radius: 4px; background: var(--em-background-3); border: 0; color: var(--em-foreground); }
+.tag { padding: 0 6px; border-radius: 4px; font-size: var(--em-font-caption); background: var(--em-background-warning); color: var(--em-foreground-warning); }
+.tag.back { background: var(--em-background-destructive); color: var(--em-foreground-destructive); }
+.done-box { white-space: nowrap; font-size: var(--em-font-caption); color: var(--em-foreground-muted); }
+
 /* 「要作者交新版」: a reject asks the author for a new version — it shows, before and after it is ticked */
 #say-reject-row { border: 1px solid var(--em-border); border-radius: var(--em-radius-control); padding: var(--em-spacing-xs) var(--em-spacing-sm); }
 #say-reject-row.on { background: var(--em-background-destructive); color: var(--em-foreground-destructive); border-color: transparent; }

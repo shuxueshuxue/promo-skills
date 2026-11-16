@@ -9,7 +9,7 @@
 // Where the project stands is read from the shapes and their places — the page writes no progress words. Settings have
 // their own view, behind the gear.
 import { f, me, $, html, render } from '/_gugu/1/glue.js'
-import { KINDS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, leadLabel, leadToWake, limitsOf, marksWords, money, roundCall, waitingRound, normalizeTable, pickOfRound, pickOf, roundsInOrder, slotOf, spendOf, tracksInOrder, withBreaks } from './model.js'
+import { KINDS, TAGS, TRACKS, addRound, cardClass, checkLine, coverOf, drawHint, eventsOf, leadLabel, leadToWake, limitsOf, marksWords, money, roundCall, waitingRound, normalizeTable, openPoints, pickOfRound, pickOf, pointOn, roundsInOrder, slotOf, spendOf, timecode, timedNotes, parseTimecode, tracksInOrder, withBreaks } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, parseSettings } from './settings.js'
 
 const ctx = await window.gugu.getContext()
@@ -35,7 +35,7 @@ if (normalizeTable(structuredClone(f.toJSON())) || f.data.brief === undefined) {
 async function tell(to, text) {
   if (!to) return
   try {
-    await window.gugu.send(to, text, { refs: [{ file: f.entry }] })
+    await window.gugu.dispatch(text, { to: { chat: chatId, member: to }, refs: [{ file: f.entry }] })
   } catch (error) {
     say(`通知 ${nameOf(to)} 失败：${error.code ?? ''} ${error.message}`, 'error')
   }
@@ -108,8 +108,14 @@ async function loadOriginal(cardId, video) {
     file?.close()
   }
   draw()
-  // It was asked for with a click: it plays. A refusal (no gesture left after a slow read) leaves its controls to click.
-  if (originals.get(key)?.url) document.querySelector(`video[data-key="original:${CSS.escape(key)}"]`)?.play().catch(() => {})
+  // It was asked for with a click: it plays (from the point clicked on its rail, if that was the click). A refusal (no
+  // gesture left after a slow read) leaves its controls to click.
+  const player = originals.get(key)?.url ? clipPlayer(`original:${key}`) : null
+  if (player) {
+    if (pendingSeek.has(cardId)) player.currentTime = pendingSeek.get(cardId)
+    player.play().catch(() => {})
+  }
+  pendingSeek.delete(cardId)
 }
 const megabytes = (bytes) => (bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : '')
 function videoView(cardId, video, open) {
@@ -134,6 +140,80 @@ function videoView(cardId, video, open) {
     ${video.check ? html`<small class="muted">提交检查：${checkLine(video.check)}</small>` : ''}
     ${original?.url ? '' : html`<button class="sm" data-act="original" data-card="${cardId}" ${original === 'loading' ? 'disabled' : ''}>${original === 'loading' ? '正在加载原片…' : '播放原片'}</button>`}`
 }
+
+// ─── points in a clip: a note or reject with a time (model.js timedNotes) — a rail of pins under the player, one per
+// point, and the list of them; a pin or a row plays the clip from there. A card's clip is its original (card.video), else
+// the first video file shown on it. ────────────────────────────────────────────────────────────────────────────────
+const pendingSeek = new Map() // cardId → seconds to start the original at once it is here
+const durations = new Map() // a video's data-key → its length, as the player read it (files have no length on the card)
+const playheads = new Map() // a video's data-key → where it is playing
+const clipPlayer = (videoKey) => document.querySelector(`video[data-key="${CSS.escape(videoKey)}"]`)
+/** The clip a card's points are on: its player's data-key and its length, or null (a card with no clip has no points). */
+function clipOf(card) {
+  if (card.video) {
+    const videoKey = `original:${clipKey(card.video)}`
+    return { videoKey, seconds: card.video.seconds || durations.get(videoKey) || 0 }
+  }
+  const files = card.files ?? []
+  const itemId = files.find((id) => media.get(id)?.kind === 'video')
+  return itemId ? { videoKey: itemId, seconds: durations.get(itemId) || 0 } : null
+}
+function seek(cardId, seconds) {
+  const card = f.data.cards[cardId]
+  const clip = card && clipOf(card)
+  if (!clip) return
+  const player = clipPlayer(clip.videoKey)
+  if (player) player.currentTime = seconds // its timeupdate moves the head
+  else if (card.video) {
+    // The original is not here yet: it is fetched, and starts from the point.
+    pendingSeek.set(cardId, seconds)
+    if (originals.get(clipKey(card.video)) !== 'loading') loadOriginal(cardId, { ...card.video, at: { ...card.video.at } })
+  }
+}
+document.addEventListener('loadedmetadata', (event) => {
+  const key = event.target.dataset?.key
+  if (event.target.tagName === 'VIDEO' && key && Number.isFinite(event.target.duration) && durations.get(key) !== event.target.duration) {
+    durations.set(key, event.target.duration)
+    draw()
+  }
+}, true)
+document.addEventListener('timeupdate', (event) => {
+  const key = event.target.dataset?.key
+  if (event.target.tagName !== 'VIDEO' || !key) return
+  playheads.set(key, event.target.currentTime)
+  // Between draws the head is moved here, from the same state and the same length the next draw places it with.
+  for (const rail of document.querySelectorAll(`.rail[data-video="${CSS.escape(key)}"]`)) rail.querySelector('.head').style.left = pct(event.target.currentTime, Number(rail.dataset.length))
+}, true)
+const pct = (at, length) => `${Math.min(100, Math.max(0, (at / length) * 100)).toFixed(2)}%`
+function pointsView(data, cardId, card) {
+  const clip = clipOf(card)
+  if (!clip) return ''
+  const points = timedNotes(data, cardId)
+  const version = card.version ?? 1
+  // No rail until the clip's length is known (a file's, once its player has read it): a pin has nowhere to stand.
+  const length = clip.seconds
+  return html`${length ? html`<div class="rail" data-key="rail:${cardId}" data-act="rail" data-card="${cardId}" data-video="${clip.videoKey}" data-length="${length}" title="点一下跳到这一刻">
+      <i class="head" style="left: ${pct(playheads.get(clip.videoKey) ?? 0, length)}"></i>
+      ${points.map((p) => html`<button class="pin ${p.done ? 'done' : ''} ${p.verdict === 'reject' ? 'back' : ''}" data-key="${p.id}" data-act="seek" data-card="${cardId}" data-s="${p.seconds}" style="left: ${pct(p.seconds, length)}" title="${timecode(p.seconds)}${p.tag ? ` ${TAGS[p.tag]}` : ''} ${p.comment ?? ''}" aria-label="跳到 ${timecode(p.seconds)}"></button>`)}
+    </div>` : ''}
+    <div class="row points-head" data-key="points-head:${cardId}"><button class="sm" data-act="mark" data-card="${cardId}"><gugu-icon name="plus"></gugu-icon> 在此刻标注</button>${points.length ? html`<small class="muted">${openPoints(data, cardId).length} 条待处理 · 共 ${points.length} 条</small>` : ''}</div>
+    ${points.length ? html`<ol class="points" data-key="points:${cardId}">${points.map((p) => html`<li class="${p.done ? 'done' : ''}" data-key="${p.id}">
+      <button class="tc" data-act="seek" data-card="${cardId}" data-s="${p.seconds}">${timecode(p.seconds)}</button>
+      <div class="point-body">
+        <span>${p.tag ? html`<span class="tag">${TAGS[p.tag]}</span> ` : ''}${p.verdict === 'reject' ? html`<span class="tag back">打回</span> ` : ''}${p.comment ?? ''}</span>
+        <small class="muted">${nameOf(p.who)}${p.version && p.version !== version ? ` · 说的是 v${p.version}` : ''} · <gugu-time datetime="${p.ts}"></gugu-time></small>
+        ${p.done ? html`<small class="muted">${nameOf(p.done.who)} 标为已处理${p.done.comment ? `：${p.done.comment}` : ''}</small>` : ''}
+      </div>
+      <label class="done-box"><input type="checkbox" data-done="${p.id}" ${p.done ? html`checked` : ''} /> 已处理</label>
+    </li>`)}</ol>` : ''}`
+}
+document.addEventListener('change', (event) => {
+  const id = event.target.dataset?.done
+  const entry = id && f.data.feedback[id]
+  if (!entry) return
+  // Unmarked: null, not removed — the one field written into an entry after it is added (model.js).
+  entry.done = event.target.checked ? { who: me, ts: now() } : null
+})
 
 // ─── the header: the brief (typed in together), 开一轮, settings ──────────────────────────────────
 try {
@@ -335,9 +415,16 @@ function takeOverOrHandBack() {
 
 // ─── 批注: one dialog, drawn once. Ticking 「要作者交新版」 makes it a reject (the author is asked for a new version) ───────
 let pending = null // the card id
-function ask(cardId) {
+$('#say-tag').innerHTML = ['<option value="">不分类</option>', ...Object.entries(TAGS).map(([key, word]) => `<option value="${key}">${word}</option>`)].join('')
+/** The 批注 dialog; on a card with a clip it takes a point in it too (given when it was opened from the player). */
+function ask(cardId, seconds) {
   pending = cardId
-  $('#say-title').textContent = `批注：${f.data.cards[cardId]?.title ?? ''}`
+  const card = f.data.cards[cardId]
+  $('#say-title').textContent = `批注：${card?.title ?? ''}`
+  $('#say-at-row').hidden = !(card && clipOf(card))
+  $('#say-at').value = seconds === undefined ? '' : timecode(seconds)
+  $('#say-at').setCustomValidity('')
+  $('#say-tag').value = ''
   $('#say-text').value = ''
   $('#say-reject').checked = false
   $('#say-rule').checked = false
@@ -353,14 +440,28 @@ function drawSayBox() {
 }
 $('#say-reject').onchange = drawSayBox
 $('#say-cancel').onclick = () => $('#say-box').close()
+$('#say-at').oninput = () => $('#say-at').setCustomValidity('')
 $('#say-send').onclick = async () => {
   const comment = $('#say-text').value.trim()
   const verdict = $('#say-reject').checked ? 'reject' : 'note'
   if (!pending || (!comment && verdict === 'note')) return
   const cardId = pending
+  const typed = $('#say-at-row').hidden ? '' : $('#say-at').value.trim()
+  let point = {}
+  if (typed) {
+    const card = f.data.cards[cardId]
+    const length = clipOf(card)?.seconds
+    try {
+      point = pointOn(card, parseTimecode(typed) ?? NaN, $('#say-tag').value || undefined, length)
+    } catch (error) {
+      $('#say-at').setCustomValidity(error.code === 'past-end' ? `片子只有 ${timecode(length)}` : '时间写成 1:05 或 65 这样')
+      $('#say-at').reportValidity()
+      return
+    }
+  }
   const id = newId('f')
   f.transact(() => {
-    f.data.feedback[id] = { card: cardId, verdict, comment, who: me, ts: now() }
+    f.data.feedback[id] = { card: cardId, verdict, comment, who: me, ts: now(), ...point }
     if ($('#say-rule').checked && comment) f.data.rules[newId('rule')] = { text: comment, from: id, by: me, at: now() }
   })
   $('#say-box').close()
@@ -396,6 +497,16 @@ document.addEventListener('click', (event) => {
   else if (act === 'history') { histories.has(card) ? histories.delete(card) : histories.add(card); draw() }
   else if (act === 'first-round') $('#open-round').click()
   else if (act === 'ask') { askOpen = !askOpen; draw() }
+  else if (act === 'seek') seek(card, Number(el.dataset.s))
+  else if (act === 'rail') {
+    const box = el.getBoundingClientRect()
+    seek(card, Math.round(((event.clientX - box.left) / box.width) * Number(el.dataset.length) * 10) / 10)
+  }
+  else if (act === 'mark') {
+    const player = clipPlayer(clipOf(f.data.cards[card])?.videoKey ?? '')
+    player?.pause()
+    ask(card, player ? player.currentTime : (playheads.get(clipOf(f.data.cards[card])?.videoKey) ?? 0))
+  }
   else if (act === 'original') { const video = f.data.cards[card]?.video; if (video) loadOriginal(card, { ...video, at: { ...video.at } }) }
 })
 
@@ -463,7 +574,7 @@ function historyView(data, cardId) {
     const what = e.kind === 'version' ? `交第 ${e.version} 版` : e.kind === 'pick' ? '选了这张' : e.kind === 'reject' ? '打回' : '批注'
     const who = e.kind === 'version' ? nameOf(data.cards[cardId].by) : nameOf(e.who)
     return html`<li data-key="${cardId}:${i}"><i class="mark ${MARK[e.kind] ?? 'n'}"></i><div>
-      <span><strong>${who}</strong> ${what}</span> <gugu-time datetime="${e.at}"></gugu-time>
+      <span><strong>${who}</strong> ${what}${typeof e.seconds === 'number' ? html` <span class="tc">${timecode(e.seconds)}</span>` : ''}${e.tag ? html` <span class="tag">${TAGS[e.tag]}</span>` : ''}</span> <gugu-time datetime="${e.at}"></gugu-time>
       ${e.comment ? html`<p>${e.comment}</p>` : ''}
       ${e.kind === 'version' && e.lost ? html`<p class="muted">此版本正文未保留：0.3.0 以前提交新版会覆盖旧版。</p>` : ''}
       ${e.kind === 'version' && !e.lost && e.version < (data.cards[cardId].version ?? 1) ? html`<details><summary>版本内容</summary><p class="kept">${e.saved?.title ?? ''}${'\n'}${withBreaks(e.saved?.text)}</p></details>` : ''}
@@ -483,6 +594,7 @@ function cardView(data, id, card, pick, place, count) {
     ${isPicked ? html`<span class="ribbon pick">已选</span>` : rejected ? html`<span class="ribbon back">已打回 · 等新版</span>` : ''}
     ${card.video ? videoView(id, card.video, opened.has(id)) : ''}
     ${files.length ? html`<div class="pics">${(opened.has(id) ? files : files.slice(0, 1)).map((itemId) => mediaView(itemId))}${!opened.has(id) && files.length > 1 ? html`<small class="more">+${files.length - 1}</small>` : ''}</div>` : ''}
+    ${pointsView(data, id, card)}
     <h3 class="card-title">${card.title}${(card.version ?? 1) > 1 ? html` <small class="muted">v${card.version}</small>` : ''}</h3>
     ${card.text ? html`<div class="text ${opened.has(id) ? 'open' : ''}" data-md="${id}"></div>` : ''}
     ${(card.text && card.text.length > 160) || files.length > 1 || card.video?.strip ? html`<button class="sm open-more" data-act="open" data-card="${id}">${opened.has(id) ? '收起' : '展开'}</button>` : ''}

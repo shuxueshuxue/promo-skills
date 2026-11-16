@@ -2,7 +2,7 @@
   "id": "studio",
   "name": "片场",
   "defaultLocale": "zh-CN",
-  "version": "0.9.0",
+  "version": "0.10.1",
   "icon": "icon.png",
   "apiVersion": 25,
   "platforms": [
@@ -43,7 +43,7 @@
       }
     ],
     "skills": "skills",
-    "instructions": "Read skill studio first: studio__board, open_round, submit and note run a group's card table. For a real product promo, read skill promo-video."
+    "instructions": "Read skill studio first: studio__board, open_round, submit, note, points and resolve run a card table. For a real product promo, read skill promo-video."
   },
   "subtitle": "群里一起做视频，人只管挑",
   "localized": {

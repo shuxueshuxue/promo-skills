@@ -15,6 +15,9 @@
 //             silence: { seconds, at }, black: [[from, to]], white: [[from, to]] }. A card has files, a video, or both.
 //   feedback  { [id]: { card, verdict: note | reject | pick, comment, who, ts } }   append-only, as review/feedback.jsonl was;
 //             a note is anyone's — a person's or an agent's they asked to look; reject and pick are the person's
+//             a note or reject on a clip may carry a point in it (0.10.0, made by pointOn): seconds (into the clip), tag
+//             (a key of TAGS) and version (of the card it was said about); done { who, ts, comment? } once someone marked
+//             it handled (unmarking sets it null). That is the only thing ever written into an entry after it is added.
 //   rules     { [id]: { text, from, by, at } }                   rules added on this table, on top of director-rulings.md
 //   names     { [user:…]: name }                                 members' names as the page last saw them (who wrote a card after they left)
 //   spend     { [id]: { tool: voice | image, usd, unpriced?, pending?, by, at, what } } what one call of the App's own tools
@@ -44,6 +47,7 @@ export const TRACKS = ['片子', '文字']
  * A table written before 0.3.0 has rounds without a line: it is guessed here, the one time, from the round's kind
  * (宣传稿 is 文字, the rest 片子) and from then on read as written. Cards get nothing: `versions` is written by the
  * submit that first revises a card (filling an empty one here could race that write and lose it).
+ * A point's tag written by the first 0.10.0 build is the word shown (画面…): it becomes its key here, the one time.
  */
 export function normalizeTable(data) {
   let added = 0
@@ -52,6 +56,10 @@ export function normalizeTable(data) {
   }
   for (const round of Object.values(data.rounds)) {
     if (typeof round.track !== 'string' || !round.track) { round.track = round.kind === '宣传稿' ? '文字' : '片子'; added += 1 }
+  }
+  for (const entry of Object.values(data.feedback)) {
+    const key = entry.tag && !Object.hasOwn(TAGS, entry.tag) && Object.keys(TAGS).find((k) => TAGS[k] === entry.tag)
+    if (key) { entry.tag = key; added += 1 }
   }
   return added
 }
@@ -116,15 +124,63 @@ export function eventsOf(data, cardId) {
     const saved = card.versions?.[String(v)]
     events.push({ kind: 'version', version: v, at: saved?.at ?? card.at, saved: saved ?? null, lost: !saved })
   }
-  for (const entry of feedbackOf(data, cardId)) events.push({ kind: entry.verdict, at: entry.ts, who: entry.who, comment: entry.comment ?? '' })
+  for (const entry of feedbackOf(data, cardId)) events.push({ kind: entry.verdict, at: entry.ts, who: entry.who, comment: entry.comment ?? '', seconds: entry.seconds, tag: entry.tag, done: entry.done })
   return events.sort((a, b) => time(a.at) - time(b.at) || (a.kind === 'version' ? -1 : 1))
 }
 
-/** Every card's feedback, oldest first. */
+/** Every card's feedback, oldest first, each with its id. */
 export function feedbackOf(data, cardId) {
-  return Object.values(data.feedback ?? {})
-    .filter((entry) => entry.card === cardId)
+  return Object.entries(data.feedback ?? {})
+    .filter(([, entry]) => entry.card === cardId)
+    .map(([id, entry]) => ({ id, ...entry }))
     .sort((a, b) => time(a.ts) - time(b.ts))
+}
+
+/** What a point in a clip is about, when the person says: the key is stored, the word is what the page shows. */
+export const TAGS = { visual: '画面', voice: '配音', subtitle: '字幕', pace: '节奏', other: '其他' }
+
+/**
+ * The point a note or reject makes in a card's clip — { seconds (to a tenth), version (the card's now), tag? } — the one
+ * place a point is made, by the page and by an agent's note alike. `length` is the clip's seconds when known (the
+ * original's from submit; the page passes what its player read for a clip that is only a file). Throws, with a `code`
+ * (seconds | past-end | tag) for the page to say it its own way, when it is not a point in that clip.
+ */
+export function pointOn(card, seconds, tag, length = card.video?.seconds) {
+  const refuse = (code, message) => { throw Object.assign(new Error(message), { code }) }
+  if (!(typeof seconds === 'number' && Number.isFinite(seconds) && seconds >= 0)) refuse('seconds', 'seconds: a point in the clip, 0 or more seconds from its start')
+  if (length && seconds > length) refuse('past-end', `seconds: the clip is ${timecode(length)} long`)
+  if (tag && !Object.hasOwn(TAGS, tag)) refuse('tag', `tag: one of ${Object.keys(TAGS).join(', ')}`)
+  return { seconds: Math.round(seconds * 10) / 10, version: card.version ?? 1, ...(tag ? { tag } : {}) }
+}
+
+/** A card's notes and rejects at a point in its clip, in the clip's order (then oldest first). */
+export const timedNotes = (data, cardId) =>
+  feedbackOf(data, cardId)
+    .filter((entry) => entry.verdict !== 'pick' && typeof entry.seconds === 'number')
+    .sort((a, b) => a.seconds - b.seconds || time(a.ts) - time(b.ts))
+
+/** The points on a card nobody has marked handled yet. */
+export const openPoints = (data, cardId) => timedNotes(data, cardId).filter((entry) => !entry.done)
+
+/** Seconds as a clip's time: 1:05, or 1:05.4 between whole seconds; hours when it has them. */
+export function timecode(seconds) {
+  const tenths = Math.round(Math.max(0, Number(seconds) || 0) * 10)
+  const whole = Math.floor(tenths / 10)
+  const [h, m, s] = [Math.floor(whole / 3600), Math.floor(whole / 60) % 60, whole % 60]
+  const ss = `${String(s).padStart(2, '0')}${tenths % 10 ? `.${tenths % 10}` : ''}`
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
+}
+
+/**
+ * A time typed in (65, 1:05, 1:05.4, 0:01:05) as seconds to a tenth; null when it is not one. After a colon it is two
+ * figures, as the clip's own time shows it: 1:5 is not read as 1:05 (trial 11-12: typed for 0:05, it went to 1:05).
+ */
+export function parseTimecode(text) {
+  const parts = String(text ?? '').trim().split(':')
+  // The last part may have tenths; without them, the first is any whole number and the others two figures.
+  const whole = (p, i) => (i === parts.length - 1 ? p.replace(/\.\d+$/, '') : p)
+  if (parts.length > 3 || !parts.every((p, i) => (i === 0 ? /^\d+$/ : /^\d{2}$/).test(whole(p, i)))) return null
+  return Math.round(parts.reduce((total, p) => total * 60 + Number(p), 0) * 10) / 10
 }
 
 /** The pick of a slot that stands: its latest. */

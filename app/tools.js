@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MAX_SECONDS, checkClip, ffmpegTools, makeCover, makeStrip, refusalOf } from './clip.js'
 import { PRICING, catchUp, costOf, layNarration, linesOf, overrunMessage, overruns, secondsOf, speak, voiceOf } from './voice.js'
-import { KINDS, addRound, answered, feedbackOf, limitsOf, normalizeTable, picksSoFar, planAfter, planOf, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
+import { KINDS, TAGS, addRound, answered, feedbackOf, limitsOf, normalizeTable, openPoints, pointOn, timecode, picksSoFar, planAfter, planOf, roundCall, roundsInOrder, slotOf, statusOf, waitingRound, workingCopyPath, writerFolder } from './model.js'
 import { IMAGE_MODEL, SETTINGS_FILE, VOICES, VOICE_MODEL, parseSettings } from './settings.js'
 
 const BOARD = { type: 'string', format: 'gugu-file', description: 'The card table: the .studio.json file the whisper you got is about.' }
@@ -209,10 +209,20 @@ const cardLine = (data, id, card) => ({
   earlierVersions: Object.keys(card.versions ?? {}).map(Number).sort((a, b) => a - b),
   status: statusOf(data, id).label,
   // What people (and the agents they asked) already said about it, the latest few: read before you annotate it too.
-  notes: feedbackOf(data, id).filter((entry) => entry.verdict === 'note').slice(-5).map((entry) => ({ who: entry.who, comment: entry.comment, at: entry.ts })),
+  notes: feedbackOf(data, id).filter((entry) => entry.verdict === 'note').slice(-5).map((entry) => ({ who: entry.who, comment: entry.comment, at: entry.ts, ...pointOf(entry) })),
+  // Notes and rejects at a point in its clip that nobody has marked handled yet: read them all with points.
+  openPoints: openPoints(data, id).length,
   files: card.files ?? [],
   ...(card.video ? { video: { cover: card.video.cover, strip: card.video.strip, seconds: card.video.seconds, at: card.video.at } } : {}),
   parents: card.parents ?? [],
+})
+
+/** Where in the clip a note is, what about, on which version, and whether it is handled: only what it has. */
+const pointOf = (entry) => ({
+  ...(typeof entry.seconds === 'number' ? { seconds: entry.seconds, timecode: timecode(entry.seconds) } : {}),
+  ...(entry.tag ? { tag: entry.tag } : {}),
+  ...(entry.version ? { version: entry.version } : {}),
+  ...(entry.done ? { done: { by: entry.done.who, at: entry.done.ts, comment: entry.done.comment ?? '' } } : {}),
 })
 
 export const board = {
@@ -255,7 +265,7 @@ export const board = {
         feedbackOnYours: mine.flatMap(([cid, card]) =>
           feedbackOf(data, cid)
             .filter((entry) => entry.verdict !== 'pick')
-            .map((entry) => ({ card: cid, title: card.title, verdict: entry.verdict, comment: entry.comment, at: entry.ts, answered: answered(data, cid, entry) })),
+            .map((entry) => ({ card: cid, title: card.title, id: entry.id, verdict: entry.verdict, comment: entry.comment, at: entry.ts, answered: answered(data, cid, entry), ...pointOf(entry) })),
         ),
         cards: cards.map(([cid, card]) => ({ ...cardLine(data, cid, card), text: short(card.text) })),
       }
@@ -420,19 +430,82 @@ export const note = {
       board: BOARD,
       card: { type: 'string' },
       comment: { type: 'string', description: 'What works, what to change; the rule (§n) when one applies. No score.' },
+      seconds: { type: 'number', minimum: 0, description: 'A point in the card\'s clip the note is about, in seconds from its start. Leave out for the card as a whole.' },
+      tag: { type: 'string', enum: Object.keys(TAGS), description: `What the point is about (with seconds); the page shows ${Object.entries(TAGS).map(([k, w]) => `${k} as ${w}`).join(', ')}.` },
     },
   },
-  async run({ board: id, card, comment }, { agent }) {
+  async run({ board: id, card, comment, seconds, tag }, { agent }) {
     if (!agent) throw new Error('note is for agents (gugu stamps who calls)')
     if (!String(comment ?? '').trim()) throw new Error('a note needs a comment')
     const f = await openBoard(id)
     try {
       const target = f.data.cards[card]
       if (!target) throw new Error(`no card ${card} on this table`)
-      f.data.feedback[newId('f')] = { card, verdict: 'note', comment: String(comment).trim(), who: agent, ts: now() }
+      const point = seconds === undefined && tag === undefined ? {} : pointOn(target, seconds, tag)
+      f.data.feedback[newId('f')] = { card, verdict: 'note', comment: String(comment).trim(), who: agent, ts: now(), ...point }
       await flushed(f)
       // Nobody is woken, as by a person's 批注: a note asks nothing of the author, who reads it on the next board.
       return { card, noted: true }
+    } finally {
+      f.close()
+    }
+  },
+}
+
+export const points = {
+  description:
+    'List the notes on one card of a Studio (片场) card table — the points people marked in its clip first, in the clip\'s order (timecode, tag, the card version it was said about), then the notes on the card as a whole — each with its id and whether someone marked it handled. `open: true` lists only those not handled yet. Read it when you rework a clip, then answer each point with resolve.',
+  inputSchema: {
+    type: 'object',
+    required: ['board', 'card'],
+    properties: {
+      board: BOARD,
+      card: { type: 'string' },
+      open: { type: 'boolean', description: 'Only the notes nobody has marked handled.' },
+    },
+  },
+  annotations: { readOnlyHint: true },
+  async run({ board: id, card, open }) {
+    const f = await openBoard(id)
+    try {
+      const data = f.toJSON()
+      const target = data.cards[card]
+      if (!target) throw new Error(`no card ${card} on this table`)
+      const notes = feedbackOf(data, card)
+        .filter((entry) => entry.verdict !== 'pick' && !(open && entry.done))
+        .sort((a, b) => (typeof a.seconds === 'number' ? a.seconds : Infinity) - (typeof b.seconds === 'number' ? b.seconds : Infinity))
+        .map((entry) => ({ id: entry.id, verdict: entry.verdict, who: entry.who, comment: entry.comment ?? '', at: entry.ts, ...pointOf(entry) }))
+      return { card, title: target.title, version: target.version ?? 1, ...(target.video?.seconds ? { clipSeconds: target.video.seconds } : {}), notes }
+    } finally {
+      f.close()
+    }
+  },
+}
+
+export const resolve = {
+  description:
+    'Mark one note on a Studio (片场) card handled (已处理), with one line on what you did about it ("0:12 换成了真实界面，见 v3"). Everyone in the chat sees it on the table. Use the note\'s id from points. It wakes nobody. It does not answer a reject — only a new version of the card (submit with card) does.',
+  inputSchema: {
+    type: 'object',
+    required: ['board', 'note', 'comment'],
+    properties: {
+      board: BOARD,
+      note: { type: 'string', description: 'The note\'s id, from points (or board).' },
+      comment: { type: 'string', description: 'One line: what you did about it.' },
+    },
+  },
+  async run({ board: id, note: noteId, comment }, { agent }) {
+    if (!agent) throw new Error('resolve is for agents (gugu stamps who calls)')
+    if (!String(comment ?? '').trim()) throw new Error('say in one line what you did about it')
+    const f = await openBoard(id)
+    try {
+      const entry = f.data.feedback[noteId]
+      if (!entry || entry.verdict === 'pick') throw new Error(`no note ${noteId} on this table`)
+      // Handled by someone else, with what they did: theirs stands (a person can untick it on the page to reopen it).
+      if (entry.done && entry.done.who !== agent) throw new Error(`note ${noteId} is already handled by ${entry.done.who}${entry.done.comment ? `: ${entry.done.comment}` : ''}`)
+      entry.done = { who: agent, ts: now(), comment: String(comment).trim() }
+      await flushed(f)
+      return { note: noteId, card: entry.card, done: true }
     } finally {
       f.close()
     }
@@ -725,7 +798,7 @@ export const open_round = {
       const notTold = []
       for (const writer of agents) {
         try {
-          await gugu.send(writer, roundCall({ n, slot, kind, each }), { refs: [{ file: f.entry }] })
+          await gugu.dispatch(roundCall({ n, slot, kind, each }), { to: { chat: f.entry.chat, member: writer }, refs: [{ file: f.entry }] })
           told.push(writer)
         } catch (error) {
           notTold.push({ writer, why: error.message })
