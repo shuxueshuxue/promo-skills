@@ -5,7 +5,7 @@
 3. You look at the cards on the table and annotate, "pick this one" or send one back. Picked cards guide the next round. You can also skip a round, pause the lead or open a round yourself.
 4. When the plan is done, the lead says in the group that the video is ready.
 
-When a writer hands in a clip, Studio checks it for you first: length (10 minutes at most), loudness, the longest silence, black or white frames. Covers and thumbnail strips are made by Studio. The original clip stays on the computer that handed it in; a click on the table plays it.
+When a writer hands in a clip, Studio checks it for you first: length (10 minutes at most), loudness, the longest silence, black or white frames. Covers and thumbnail strips are made by Studio. The review render is saved in the chat folder for everyone to play; the master stays on the submitting computer.
 
 Images and voices use the OpenRouter key set in Studio's settings, with the cost summed at the top of the table. A table has at most 8 rounds and 4 writers a round by default, adjustable in settings. A device that hands in video needs ffmpeg.
 

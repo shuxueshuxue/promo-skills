@@ -50,14 +50,14 @@ function flushed(f) {
   })
 }
 
-/** A clip handed in with `video`: its original stays in the agent's working copy; the card keeps where, its size and hash. */
+/** A clip handed in with `video`: its review render is uploaded to the table's chat. */
 const VIDEO = {
   type: 'object',
   required: ['path'],
   properties: {
-    path: { type: 'string', description: 'The review render (720p, at most 25 MB) in your working copy, relative to it, in your folder (board\'s yourFolder): studio/<the table>/<your id>/cut.720p.mp4. It stays there — the card keeps where it is, not a copy.' },
+    path: { type: 'string', description: 'The review render (720p, at most 25 MB) in your working copy, relative to it, in your folder (board\'s yourFolder): studio/<the table>/<your id>/cut.720p.mp4. submit uploads it to the chat for review; keep the master on your machine.' },
   },
-  description: 'A clip whose original stays on your machine. submit reads it here: checks it (a clip nobody can hear is refused), makes its cover and its strip of frames and puts those two in the chat. Instead of putting the clip itself in files.',
+  description: 'submit checks the review render (a clip nobody can hear is refused), then uploads it and its cover and strip to the chat. Keep the master on your machine.',
 }
 
 /** The largest file an App can open (gugu's open-file limit): a bigger original could be kept but never played. */
@@ -103,7 +103,7 @@ async function sourceOf(media, stamp, what) {
 }
 
 /** The original of a clip, read where the agent works. */
-async function originalOf({ rel, abs, stat, sha256 }, { session }) {
+async function originalOf({ rel, abs, stat, sha256 }) {
   if (stat.size > PLAYABLE_BYTES) {
     throw new Error(`${rel} is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the table plays an original of up to 25 MB — hand in the 720p review render instead and keep the master where you rendered it`)
   }
@@ -135,26 +135,32 @@ async function originalOf({ rel, abs, stat, sha256 }, { session }) {
   }
   return {
     pictures,
+    source: { abs, name: `${name}${path.extname(rel).toLowerCase()}` },
     video: {
       seconds: round(check.seconds),
       width: check.width,
       height: check.height,
       bytes: stat.size,
       sha256,
-      at: { session, path: rel },
       check: { lufs: check.lufs, peak: check.peak, silence: check.silence, black: check.black.map((s) => s.map(round)), white: check.white.map((s) => s.map(round)) },
     },
   }
 }
 
-/** The cover and the strip of a clip, put in the table's chat: their item ids, for the card. */
-async function picturesIn(chat, { cover, strip }, uploaded) {
+/** The review render, cover and strip in the table's chat: their item ids, for the card. */
+async function clipIn(chat, { pictures: { cover, strip }, source }, uploaded) {
   const file = (p) => new File([readFileSync(p)], path.basename(p), { type: 'image/jpeg' })
-  const entries = await gugu.files.upload({ chat }, [file(cover), file(strip)])
-  uploaded.push(...entries.filter((entry) => entry.id))
-  const [coverId, stripId] = entries.map((entry) => entry.id)
-  if (!coverId || !stripId) throw new Error('the cover and strip did not reach the chat — try again')
-  return { cover: coverId, strip: stripId }
+  const type = { '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm' }[path.extname(source.name)] || 'application/octet-stream'
+  const items = [file(cover), file(strip), new File([readFileSync(source.abs)], source.name, { type })]
+  const ids = []
+  for (const item of items) {
+    const [entry] = await gugu.files.upload({ chat }, [item])
+    if (!entry?.id) throw new Error('the review render, cover or strip did not reach the chat — try again')
+    uploaded.push(entry)
+    ids.push(entry.id)
+  }
+  const [coverId, stripId, itemId] = ids
+  return { cover: coverId, strip: stripId, item: itemId }
 }
 
 /** A sound handed in with `audio` (a voice sample, a narration): read where it was made — refused when nobody can hear it. */
@@ -213,7 +219,7 @@ const cardLine = (data, id, card) => ({
   // Notes and rejects at a point in its clip that nobody has marked handled yet: read them all with points.
   openPoints: openPoints(data, id).length,
   files: card.files ?? [],
-  ...(card.video ? { video: { cover: card.video.cover, strip: card.video.strip, seconds: card.video.seconds, at: card.video.at } } : {}),
+  ...(card.video ? { video: { cover: card.video.cover, strip: card.video.strip, seconds: card.video.seconds, item: card.video.item } } : {}),
   parents: card.parents ?? [],
 })
 
@@ -344,7 +350,7 @@ export const submit = {
         }
       }
       // A retried creation returns above before media is decoded or uploaded again.
-      clip = videoSource ? await originalOf(videoSource, stamp) : null
+      clip = videoSource ? await originalOf(videoSource) : null
       sound = audioSource ? await soundOf(audioSource) : null
       // A new version keeps what it does not say again (a revision that only redraws keeps its title and text).
       const prev = own ? f.data.cards[own] : {}
@@ -355,7 +361,7 @@ export const submit = {
       if (!title) throw new Error('a card needs a title')
       if (!text && !files.length && !clip && !sound && !prev.video) throw new Error('a card needs text, files, a video or a sound')
       // The last thing before the card is written: nothing reaches the chat for a card that is refused.
-      const video = clip ? { ...(await picturesIn(f.entry.chat, clip.pictures, uploaded)), ...clip.video } : null
+      const video = clip ? { ...(await clipIn(f.entry.chat, clip, uploaded)), ...clip.video } : null
       if (sound) {
         const [entry] = await gugu.files.upload({ chat: f.entry.chat }, [new File([readFileSync(sound.abs)], sound.name, { type: sound.type })])
         if (entry?.id) uploaded.push(entry)

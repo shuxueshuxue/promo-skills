@@ -85,12 +85,11 @@ function mediaView(itemId, cls = 'media') {
   return html`<img class="${cls}" data-key="${itemId}" src="${m.url}" alt="${m.name}" />`
 }
 
-// ─── a clip's original: it stays in the working copy of the session that made it (cards[].video.at), opened on demand ──
-// Keyed by the clip itself (its sha256, else where it is), never by the card: a new version of the card brings a new
-// clip, and the page plays that one — not the one it played before the reject.
+// ─── a review render in the chat folder, opened on demand ──
+// Keyed by the chat file, so a new version plays its own review render.
 const originals = new Map() // clip key → 'loading' | { url, changed } | { error }
 const shown = new Map() // cardId → the clip key it last showed (its object URL goes when the card moves on)
-const clipKey = (video) => video.sha256 || `${video.at.session}/${video.at.path}`
+const clipKey = (video) => video.item || `legacy:${video.cover}`
 const hex = (buffer) => [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
 async function loadOriginal(cardId, video) {
   const key = clipKey(video)
@@ -98,15 +97,12 @@ async function loadOriginal(cardId, video) {
   draw()
   let file = null
   try {
-    file = await window.gugu.files.open({ workspace: `session:${video.at.session}`, name: video.at.path }, { readOnly: true })
+    file = await window.gugu.files.open({ chat: chatId, id: video.item }, { readOnly: true })
     const blob = await file.blob()
     const sha = video.sha256 ? hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())) : null
     originals.set(key, { url: URL.createObjectURL(blob), changed: Boolean(sha && sha !== video.sha256) })
   } catch (error) {
-    const why = error.code === 'not-found'
-      ? `未找到原片：请检查提交任务的工作区和文件（${error.message}）`
-      : `原片打开失败：${error.message}`
-    originals.set(key, { error: why })
+    originals.set(key, { error: `审片版打开失败：${error.message}` })
   } finally {
     file?.close()
   }
@@ -137,11 +133,11 @@ function videoView(cardId, video, open) {
   return html`${original?.url ? '' : html`<div class="pics">${mediaView(video.cover)}</div>`}
     ${open && video.strip ? html`<div class="strip">${mediaView(video.strip)}</div>` : ''}
     ${original?.url ? html`<video class="media" data-key="original:${key}" src="${original.url}" controls playsinline preload="metadata"></video>` : ''}
-    ${original?.changed ? html`<small class="muted" role="alert">原片已修改，与提交时的版本不一致。</small>` : ''}
+    ${original?.changed ? html`<small class="muted" role="alert">审片版已修改，与提交时的版本不一致。</small>` : ''}
     ${original?.error ? html`<small class="muted" role="alert">${original.error}</small>` : ''}
-    <small class="muted">原片${facts ? ` ${facts}` : ''}，保存在提交设备上；云端保存封面和缩略条。</small>
+    <small class="muted">审片版${facts ? ` ${facts}` : ''}${video.item ? '，保存在群文件中' : ''}。</small>
     ${video.check ? html`<small class="muted">提交检查：${checkLine(video.check)}</small>` : ''}
-    ${original?.url ? '' : html`<button class="sm" data-act="original" data-card="${cardId}" ${original === 'loading' ? 'disabled' : ''}>${original === 'loading' ? '正在加载原片…' : '播放原片'}</button>`}`
+    ${!video.item ? html`<small class="muted" role="alert">旧版视频未保存到群文件，请作者重新提交审片版。</small>` : original?.url ? '' : html`<button class="sm" data-act="original" data-card="${cardId}" ${original === 'loading' ? 'disabled' : ''}>${original === 'loading' ? '正在加载审片版…' : '播放审片版'}</button>`}`
 }
 
 // ─── points in a clip: a note or reject with a time (model.js timedNotes) — a rail of pins under the player, one per
@@ -167,10 +163,10 @@ function seek(cardId, seconds) {
   if (!clip) return
   const player = clipPlayer(clip.videoKey)
   if (player) player.currentTime = seconds // its timeupdate moves the head
-  else if (card.video) {
-    // The original is not here yet: it is fetched, and starts from the point.
+  else if (card.video?.item) {
+    // The review render is not here yet: it is fetched, and starts from the point.
     pendingSeek.set(cardId, seconds)
-    if (originals.get(clipKey(card.video)) !== 'loading') loadOriginal(cardId, { ...card.video, at: { ...card.video.at } })
+    if (originals.get(clipKey(card.video)) !== 'loading') loadOriginal(cardId, { ...card.video })
   }
 }
 document.addEventListener('loadedmetadata', (event) => {
@@ -520,7 +516,7 @@ document.addEventListener('click', (event) => {
     player?.pause()
     ask(card, player ? player.currentTime : (playheads.get(clipOf(f.data.cards[card])?.videoKey) ?? 0))
   }
-  else if (act === 'original') { const video = f.data.cards[card]?.video; if (video) loadOriginal(card, { ...video, at: { ...video.at } }) }
+  else if (act === 'original') { const video = f.data.cards[card]?.video; if (video?.item) loadOriginal(card, { ...video }) }
 })
 
 function spineView(data) {

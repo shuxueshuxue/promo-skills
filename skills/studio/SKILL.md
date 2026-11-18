@@ -98,14 +98,12 @@ open them; the writers hand in cards; the person picks and rejects. You hand in 
      mascot's or a screenshot's look);
    - clips: real product footage follows the promo-video skill (capture, assemble, a variant render); intros and moods
      may come from a video API. Hand in the review render (720p is plenty, and it must be at most 25 MB — the largest
-     file the table can play; the master stays on the machine that rendered it). It stays where you rendered it too —
-     hand it in with `video`, not `files`:
+     file the table can play; the master stays on the machine that rendered it). Hand it in with `video`, not `files`:
      `video.path` is that render in your working copy (relative, in your folder: e.g. `studio/<the table>/<your id>/cut.720p.mp4`) — that is all you give.
      The tool reads the clip where you work: it checks it (length, loudness, the longest silence, black or white
      screens — a clip nobody can hear is refused, so mux the narration in first; so is one longer than 10 minutes), makes its cover and its strip of 8
-     frames and puts those two in the chat, and keeps the clip's size and hash. The check comes back in the answer and
-     goes on the card; the person plays the clip from the table, read from your machine. Don't move or overwrite it
-     after you hand it in — a new cut is a new version of the card;
+     frames and uploads those and the review render to the chat, keeping the clip's size and hash. The check comes back
+     in the answer and goes on the card; everyone in the chat can play the review render. The master stays on your machine;
    - narration: cut the picture first, then `voice` with `film` (its path in your working copy) and `lines` — each
      `{ text, at }`, `at` the second the line starts, in the order spoken. It speaks every line in the table's voice,
      lays them on one track at -16 LUFS over the film's own sound — its music and effects stay, brought down to
