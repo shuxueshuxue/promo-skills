@@ -101,11 +101,12 @@ test('a creation stalled on upload cannot overwrite a retry that was already rev
     assert.equal(data.cards[retry.card].version, 2)
     assert.equal(late.version, 2)
     assert.equal(Object.keys(data.cards).length, 1)
-    assert.equal(uploads.length, 4)
-    assert.deepEqual(removed.sort(), ['item-1-0', 'item-1-1', 'item-4-0'])
+    assert.equal(uploads.length, 8)
+    assert.deepEqual(removed.sort(), ['item-1-0', 'item-6-0', 'item-7-0', 'item-8-0'])
     assert.equal(data.cards[retry.card].video.cover, 'item-2-0')
-    assert.equal(data.cards[retry.card].video.strip, 'item-2-1')
-    assert.deepEqual(data.cards[retry.card].files, ['item-3-0'])
+    assert.equal(data.cards[retry.card].video.strip, 'item-3-0')
+    assert.equal(data.cards[retry.card].video.item, 'item-4-0')
+    assert.deepEqual(data.cards[retry.card].files, ['item-5-0'])
   } finally { release(); await delayed.catch(() => {}) }
 })
 
@@ -118,29 +119,45 @@ test('a rerender at the same video path conflicts even when its size is unchange
   writeFileSync(path.join(work, p), bytes)
   await assert.rejects(hand(p), /already used with different arguments/)
   assert.equal(Object.keys(data.cards).length, 1)
-  assert.equal(uploads.length, 1)
+  assert.equal(uploads.length, 3)
   assert.notEqual(data.cards[first.card].video.sha256, shaOf(p))
 })
 
-test('a clip it takes: its cover and strip go to the table\'s chat, and the card keeps them with its check', { skip: noFfmpeg }, async () => {
+test('a clip it takes: the review render, cover and strip go to the chat with the check', { skip: noFfmpeg }, async () => {
   const p = clip('voiced.mp4', 'sine=frequency=440:duration=4')
   const { data, uploads } = table()
   const before = clipDirs()
   const answer = await hand(p)
-  assert.equal(uploads.length, 1)
-  assert.deepEqual(uploads[0].place, { chat: 'chat-1' })
+  assert.equal(uploads.length, 3)
+  assert.ok(uploads.every((upload) => upload.place.chat === 'chat-1'))
   // Named by the clip and its hash: two cards' voiced.mp4 do not share a name in the group folder.
   const sha8 = shaOf(p).slice(0, 8)
-  assert.deepEqual(uploads[0].files.map((f) => [f.name, f.type]), [[`voiced-${sha8}-cover.jpg`, 'image/jpeg'], [`voiced-${sha8}-strip.jpg`, 'image/jpeg']])
+  assert.deepEqual(uploads.flatMap((upload) => upload.files.map((f) => [f.name, f.type])), [[`voiced-${sha8}-cover.jpg`, 'image/jpeg'], [`voiced-${sha8}-strip.jpg`, 'image/jpeg'], [`voiced-${sha8}.mp4`, 'video/mp4']])
   const card = data.cards[answer.card]
   assert.equal(card.video.cover, 'item-1-0')
-  assert.equal(card.video.strip, 'item-1-1')
+  assert.equal(card.video.strip, 'item-2-0')
+  assert.equal(card.video.item, 'item-3-0')
+  assert.equal(uploads[2].files[0].size, readFileSync(path.join(work, p)).length)
   assert.equal(card.video.sha256, createHash('sha256').update(readFileSync(path.join(work, p))).digest('hex'))
-  assert.deepEqual([card.video.width, card.video.height, card.video.at], [320, 180, { session: 's-1', path: p }])
+  assert.deepEqual([card.video.width, card.video.height], [320, 180])
+  assert.equal(card.video.at, undefined)
   assert.ok(Math.abs(card.video.seconds - 4) < 0.2)
   assert.ok(card.video.check.lufs > -30)
   assert.deepEqual(answer.check, card.video.check)
   assert.equal(clipDirs(), before, 'the cover and strip made for the call are gone after it')
+})
+
+test('an upload failure removes the files this submission already placed', { skip: noFfmpeg }, async () => {
+  const p = clip('upload-fails.mp4', 'sine=frequency=440:duration=4')
+  const { data, uploads, removed } = table()
+  const upload = gugu.files.upload
+  gugu.files.upload = async (...args) => {
+    if (uploads.length === 2) throw new Error('upload failed')
+    return upload(...args)
+  }
+  await assert.rejects(hand(p), /upload failed/)
+  assert.deepEqual(removed, ['item-1-0', 'item-2-0'])
+  assert.deepEqual(data.cards, {})
 })
 
 test('a clip nobody can hear is refused before anything reaches the chat or the table', { skip: noFfmpeg }, async () => {

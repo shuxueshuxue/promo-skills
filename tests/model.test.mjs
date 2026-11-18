@@ -136,7 +136,7 @@ test('eventsOf: a version overwritten before 0.3.0 is marked lost; a kept one ca
   assert.deepEqual(kept.map((e) => [e.version, e.saved?.text ?? null, Boolean(e.lost)]), [[1, null, true], [2, 'v2 text', false], [3, 'v3 text', false]])
 })
 
-test('a clip keeps its original where it was made: the card shows its cover first, the path is kept relative and inside', async () => {
+test('a card shows its cover first, and a submitted path stays inside the working copy', async () => {
   const { coverOf, workingCopyPath } = await import('../app/model.js')
   assert.equal(coverOf({ files: ['f1'], video: { cover: 'v1' } }), 'v1')
   assert.equal(coverOf({ files: ['f1'] }), 'f1')

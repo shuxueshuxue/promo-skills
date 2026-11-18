@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.11.1
+
+- Upload review renders to the chat on submission so all members can play them; older machine-local renders require resubmission. Masters remain on the submitting machine.
+
 ## 0.11.0
 
 - An archive of the chat's projects: Studio's own page (a new tab, `projects`, that opens no file — 打开 on Studio's card and the rail open it) lists every card table of the chat. Each `.studio.json` is one project: nothing is moved or rewritten, an existing table is simply one of them, with its picture, what was picked, its open points and who leads it. A project opens beside the archive (the one already open is shown, never a second); 全部工程 on a table goes back.

@@ -8,11 +8,9 @@
 //                       cost: { usd, seconds, tokens }, versions: { [n]: { title, text, files, model, cost, at } } } }
 //             versions: the earlier versions a new one replaced (the current one is the card itself); absent on a card
 //             that was never revised from 0.3.0 on
-//             video (0.4.0): a clip whose original stays where it was made — { cover: itemId, strip: itemId, seconds,
-//             width, height, bytes, sha256, at: { session, path }, check }: the cover (a frame) and the strip (frames in
-//             one picture) are in the chat, both made by submit from the clip; the original is the file `path` of that
-//             session's working copy, on the machine that made it. check: what submit measured there — { lufs, peak,
-//             silence: { seconds, at }, black: [[from, to]], white: [[from, to]] }. A card has files, a video, or both.
+//             video: { item, cover, strip, seconds, width, height, bytes, sha256, check }; the review render, cover
+//             and strip are chat files. Legacy videos without item need resubmission. check contains the measured
+//             loudness, silence and blank screens. A card has files, a video, or both.
 //   feedback  { [id]: { card, verdict: note | reject | pick, comment, who, ts } }   append-only, as review/feedback.jsonl was;
 //             a note is anyone's — a person's or an agent's they asked to look; reject and pick are the person's
 //             a note or reject on a clip may carry a point in it (0.10.0, made by pointOn): seconds (into the clip), tag
