@@ -1,5 +1,7 @@
-// Which page Studio is: a project's card table when it was opened on a .studio.json (app.js), the chat's archive of
-// its projects on the App's own page, the tab `projects` that opens no file (archive.js) — an App's main page is a tab
-// that opens no file, so the archive is what 打开 on Studio's card and the rail open.
+// Which page Studio is: a project's card table when it was opened on a .studio.json (app.js), or the chat's archive of
+// its projects when it opens no file in a chat (archive.js). Projects live in a chat: opened anywhere else (the App's own
+// page from the rail or the market, which has no chat), there is no archive to draw — only where to open it instead.
 const ctx = await window.gugu.getContext()
-await import(ctx.file ? './app.js' : './archive.js')
+if (ctx.file) await import('./app.js')
+else if (ctx.chat?.id) await import('./archive.js')
+else document.querySelector('#status').textContent = '片场的工程在群里：在一个群里打开片场。'

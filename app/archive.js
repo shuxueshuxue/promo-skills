@@ -7,8 +7,8 @@ import { drawUploads, uploadInto } from './upload.js'
 
 const $ = (selector) => document.querySelector(selector)
 const ctx = await window.gugu.getContext()
-const chat = ctx.chat?.id
-const members = ctx.chat?.members ?? []
+const chat = ctx.chat.id // main.js draws the archive only in a chat
+const members = ctx.chat.members ?? []
 $('#archive').hidden = false
 window.gugu.setTabTitle?.('片场')?.catch?.(() => {}) // a title is a nicety: a host without it still shows the page
 
@@ -16,11 +16,6 @@ function say(message) {
   $('#status').setAttribute('role', 'alert')
   $('#status').textContent = message
 }
-if (!chat) {
-  say('片场的工程在群里：在一个群里打开片场。')
-  throw new Error('Studio opened outside a chat')
-}
-
 function el(tag, props = {}, ...children) {
   const node = Object.assign(document.createElement(tag), props)
   node.append(...children.filter((child) => child !== null && child !== undefined && child !== false))
