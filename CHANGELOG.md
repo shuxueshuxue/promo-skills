@@ -1,12 +1,16 @@
 # 片场 (Studio) — changes
 
+## 0.11.2
+
+- Opened outside a chat (the App's own page from the rail or the market), Studio says to open it in a chat and shows nothing else. It used to show the archive's 上传视频 / 新建工程 buttons, which did nothing there, and report an error.
+
 ## 0.11.1
 
 - Upload review renders to the chat on submission so all members can play them; older machine-local renders require resubmission. Masters remain on the submitting machine.
 
 ## 0.11.0
 
-- An archive of the chat's projects: Studio's own page (a new tab, `projects`, that opens no file — 打开 on Studio's card and the rail open it) lists every card table of the chat. Each `.studio.json` is one project: nothing is moved or rewritten, an existing table is simply one of them, with its picture, what was picked, its open points and who leads it. A project opens beside the archive (the one already open is shown, never a second); 全部工程 on a table goes back.
+- An archive of the chat's projects: Studio's own page in a chat (a new tab, `projects`, that opens no file — 打开 on Studio's card in the chat opens it) lists every card table of the chat. Each `.studio.json` is one project: nothing is moved or rewritten, an existing table is simply one of them, with its picture, what was picked, its open points and who leads it. A project opens beside the archive (the one already open is shown, never a second); 全部工程 on a table goes back.
 - Videos uploaded into a project: picked (or dropped on a project in the archive) into an existing project or a new one, each file uploaded on its own — all at the same time, each with its own state. They go into the chat folder's `片场/<project>/` and each becomes a 素材 card of no round: points, notes and agents' tools work on it as on any card. A file over the platform's 25 MB limit for an App's upload is refused on its row.
 - `new_project` (agents): make an empty project in a chat, no round and no lead; the people see it in the archive. `open_round`'s first call makes its table the same way.
 
