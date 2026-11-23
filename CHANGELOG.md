@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.11.3
+
+- A card's footer puts its history line (经过：…) on a row of its own, with 选这张 / 批注 under it on the right. On a narrow card that was not picked yet, the history line was squeezed and ran under 选这张.
+
 ## 0.11.2
 
 - Opened outside a chat (the App's own page from the rail or the market), Studio says to open it in a chat and shows nothing else. It used to show the archive's 上传视频 / 新建工程 buttons, which did nothing there, and report an error.
