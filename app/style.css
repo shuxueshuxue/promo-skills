@@ -91,11 +91,13 @@ body { margin: 0; }
 .verdict { margin: 0; padding: var(--em-spacing-xs) var(--em-spacing-md); border-left: 3px solid var(--em-foreground-destructive); background: var(--em-background-destructive); border-radius: 0 var(--em-radius-control) var(--em-radius-control) 0; }
 .verdict small { display: block; color: var(--em-foreground-muted); }
 .card-meta { display: flex; align-items: center; gap: var(--em-spacing-xs); flex-wrap: wrap; }
-.card-foot { display: flex; align-items: center; gap: var(--em-spacing-sm); padding-top: var(--em-spacing-md); border-top: 1px solid var(--em-border); }
+.card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--em-spacing-sm); padding-top: var(--em-spacing-md); border-top: 1px solid var(--em-border); }
 
 /* a card's history as marks: ● a version · ○ a note · ✕ a reject · ✓ the pick — and before them the same in words
    (trial 10-12: the dots alone read as stray dots) */
-.marks-btn { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--em-spacing-sm); border: 0; background: none; padding: 0; border-radius: 0; justify-content: flex-start; }
+/* the history line takes a row of its own; the actions sit under it, right-aligned */
+.marks-btn { flex: 1 1 100%; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--em-spacing-sm); border: 0; background: none; padding: 0; border-radius: 0; justify-content: flex-start; }
+.marks-btn + .sm { margin-left: auto; }
 .marks { display: flex; align-items: center; gap: 8px; min-height: 14px; }
 .mark { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; position: relative; }
 .mark.v { background: var(--em-foreground); }
