@@ -1,5 +1,9 @@
 # 片场 (Studio) — changes
 
+## 0.11.4
+
+- Market page: new screenshots of the current interface (a round with two writers on different models, points on a clip, the chat's projects) and a new main image; About (both languages) describes points on a clip and the project archive.
+
 ## 0.11.3
 
 - A card's footer puts its history line (经过：…) on a row of its own, with 选这张 / 批注 under it on the right. On a narrow card that was not picked yet, the history line was squeezed and ran under 选这张.
